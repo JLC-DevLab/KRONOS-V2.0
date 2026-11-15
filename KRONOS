@@ -14,4 +14,6 @@ export XDG_CACHE_HOME="$KRONOS_ENV/cache/gui"
 export XDG_CONFIG_HOME="$KRONOS_ENV/home/config"
 export TMPDIR="$KRONOS_ENV/tmp"
 export DOTNET_CLI_TELEMETRY_OPTOUT=1
+exec 9>"$KRONOS_ENV/application.lock"
+flock -s 9
 exec "$KRONOS_ENV/app/Kronos.Desktop" "$@"

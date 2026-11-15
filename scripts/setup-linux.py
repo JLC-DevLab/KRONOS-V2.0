@@ -90,6 +90,11 @@ def main():
   except (OSError,ValueError):raise SystemExit(1)
   raise SystemExit(0 if ready.get('source_sha256')==source_hash() and (ENV/'app/Kronos.Desktop').is_file() and (ENV/'bin/python').is_file() and (ENV/'tools/tools.json').is_file() else 1)
  EVIDENCE.mkdir(exist_ok=True)
+ ENV.mkdir(exist_ok=True)
+ import fcntl
+ setup_lock=(ENV/'application.lock').open('a')
+ try:fcntl.flock(setup_lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
+ except BlockingIOError:raise SystemExit('Hay otra instancia o preparación de KRONOS en curso. Ciérrala o espera antes de actualizar.')
  if not (ENV/'bin/python').exists():venv.EnvBuilder(with_pip=True).create(ENV)
  for name in ('tmp','cache','home','Trabajo'): (ENV/name).mkdir(parents=True,exist_ok=True)
  python=ENV/'bin/python'
