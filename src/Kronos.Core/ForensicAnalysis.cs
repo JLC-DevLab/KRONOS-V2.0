@@ -35,8 +35,8 @@ public sealed record ForensicTool(string Id, string Name, string Scope)
         new("disk", "Discos RAW · particiones y volúmenes", "Imagen de disco o volumen RAW: GPT/MBR y firmas NTFS, FAT, exFAT, ext, XFS, BitLocker y LUKS. No enumera archivos, reconstruye RAID ni descifra volúmenes."),
         new("foremost", "Foremost · recuperar imágenes y archivos", "Volcados RAM e imágenes sin compresión. Recuperación por firmas; archivos fragmentados pueden quedar incompletos."),
         new("floss", "FLOSS · cadenas de ejecutables", "Archivos PE compatibles, cadenas estáticas y descodificadas. No determina si un archivo es malicioso."),
-        new("aleapp", "ALEAPP · extracción Android", "Extracciones de sistema de archivos Android en ZIP/TAR/TAR.GZ. Analiza una extracción existente; no adquiere ni desbloquea teléfonos."),
-        new("ileapp", "iLEAPP · extracción iOS", "Extracciones de sistema de archivos iOS en ZIP/TAR/TAR.GZ. No adquiere ni descifra dispositivos o copias cifradas."),
+        new("aleapp", "Android · ALEAPP", "Extracciones de sistema de archivos Android en ZIP/TAR/TAR.GZ. Analiza una extracción existente; no adquiere ni desbloquea teléfonos."),
+        new("ileapp", "iPhone / iPad · iLEAPP", "Extracciones de sistema de archivos iOS en ZIP/TAR/TAR.GZ. No adquiere ni descifra dispositivos o copias cifradas."),
         new("browser", "Navegadores · historial y búsquedas GitHub", "Base SQLite History / places.sqlite de Chromium, Firefox o Safari. Solo base principal; WAL y borrados pendientes."),
         new("zip", "ZIP · contenido y cifrado", "Inventario del directorio ZIP: nombres, tamaños, CRC, cifrado y rutas peligrosas. No abre ni ejecuta su contenido."),
         new("strings", "Cadenas · indicios con offsets", "ASCII y UTF-16LE de archivos o RAM. Hasta 100000 cadenas; una cadena no equivale a un historial confirmado.")
@@ -69,18 +69,20 @@ public sealed partial class CaseService
     }
 
     // Redirect into persistent files: tool output never fills UI memory. Kill entire process tree on cancel/timeout/budget.
-    private static async Task<int> RunForensicProcess(string executable, IEnumerable<string> args, string directory, string label, CancellationToken cancellation)
+    private static async Task<int> RunForensicProcess(string executable, IEnumerable<string> args, string directory, string label, CancellationToken cancellation, IProgress<string>? progress = null)
     {
         var start = new ProcessStartInfo(executable) { UseShellExecute = false, CreateNoWindow = true, WorkingDirectory = directory,
             RedirectStandardOutput = true, RedirectStandardError = true, RedirectStandardInput = true };
+        CaseProcessEnvironment.Configure(start, directory);
         foreach (var arg in args) start.ArgumentList.Add(arg);
         start.Environment["FLOSS_LOAD_VIV_WORKSPACE"] = "0";
         start.Environment["FLOSS_SAVE_WORKSPACE"] = "0";
         start.Environment["PYTHONUTF8"] = "1";
         using var process = Process.Start(start) ?? throw new IOException("No se pudo iniciar el motor forense.");
         process.StandardInput.Close();
-        await using var stdout = File.Create(Path.Combine(directory, label + ".stdout.json"));
-        await using var stderr = File.Create(Path.Combine(directory, label + ".stderr.log"));
+        await using var stdout = new FileStream(Path.Combine(directory, label + ".stdout.json"), FileMode.Create, FileAccess.Write, FileShare.ReadWrite);
+        await using var stderr = new FileStream(Path.Combine(directory, label + ".stderr.log"), FileMode.Create, FileAccess.Write, FileShare.ReadWrite);
+        var elapsed = Stopwatch.StartNew();
         var copying = Task.WhenAll(process.StandardOutput.BaseStream.CopyToAsync(stdout), process.StandardError.BaseStream.CopyToAsync(stderr));
         using var limit = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
         limit.CancelAfter(TimeSpan.FromMinutes(30));
@@ -89,14 +91,27 @@ public sealed partial class CaseService
         {
             while (!finished.IsCompleted)
             {
-                await Task.WhenAny(finished, Task.Delay(1500, limit.Token));
+                await Task.WhenAny(finished, Task.Delay(10000, limit.Token));
                 limit.Token.ThrowIfCancellationRequested();
-                long size = 0; var count = 0;
-                foreach (var file in Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories))
+                if (finished.IsCompleted) break;
+                var tail = VolatilityRunner.ReadTail(Path.Combine(directory, label + ".stdout.json"));
+                var stages = System.Text.RegularExpressions.Regex.Matches(tail, @"\[(\d+)/(\d+)\] ([^\r\n]+)");
+                progress?.Report(stages.Count > 0 ? $"Artefactos {stages[^1].Groups[1].Value}/{stages[^1].Groups[2].Value} · {elapsed.Elapsed:mm\\:ss} transcurridos" :
+                    $"Motor en ejecución · {elapsed.Elapsed:mm\\:ss} transcurridos · resultados dentro del caso");
+                await Task.Run(() =>
                 {
-                    if (++count > 100000 || (size += new FileInfo(file).Length) > 10L * 1024 * 1024 * 1024)
-                        throw new IOException("Límite de salida alcanzado (10 GiB / 100000 archivos); resultados parciales conservados.");
-                }
+                    long size = 0; var count = 0;
+                    foreach (var file in Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories))
+                    {
+                        limit.Token.ThrowIfCancellationRequested();
+                        try
+                        {
+                            if (++count > 100000 || (size += new FileInfo(file).Length) > 10L * 1024 * 1024 * 1024)
+                                throw new IOException("Límite de salida alcanzado (10 GiB / 100000 archivos); resultados parciales conservados.");
+                        }
+                        catch (FileNotFoundException) { /* A temporary may disappear while the tool is running. */ }
+                    }
+                }, limit.Token);
             }
             await finished;
             await copying;
@@ -113,35 +128,6 @@ public sealed partial class CaseService
         }
     }
 
-    private static async Task TransferMobileOutput(string staging, string destination)
-    {
-        // Directory.Move cannot cross volumes (TEMP is commonly C:, cases may live on F:).
-        if (Path.GetPathRoot(staging)!.Equals(Path.GetPathRoot(destination), StringComparison.OrdinalIgnoreCase))
-        { Directory.Move(staging, destination); return; }
-        var directories = new List<string> { staging };
-        for (var index = 0; index < directories.Count; index++)
-        {
-            var source = directories[index];
-            if ((File.GetAttributes(source) & FileAttributes.ReparsePoint) != 0) throw new IOException("Enlace no permitido en la salida móvil.");
-            var target = Path.Combine(destination, Path.GetRelativePath(staging, source));
-            Directory.CreateDirectory(target);
-            foreach (var child in Directory.EnumerateDirectories(source)) directories.Add(child);
-            foreach (var file in Directory.EnumerateFiles(source))
-            {
-                if ((File.GetAttributes(file) & FileAttributes.ReparsePoint) != 0) throw new IOException("Enlace no permitido en la salida móvil.");
-                var copy = Path.Combine(target, Path.GetFileName(file));
-                File.Copy(file, copy, false);
-                if (await HashAsync(file) != await HashAsync(copy)) throw new IOException("No coincide la copia de la salida móvil; se conserva el temporal: " + staging);
-            }
-        }
-        // All destinations verified before removing the private temporary copies.
-        foreach (var dir in directories.AsEnumerable().Reverse())
-        {
-            foreach (var file in Directory.EnumerateFiles(dir)) File.Delete(file);
-            Directory.Delete(dir);
-        }
-    }
-
     public async Task<ForensicAnalysis> AnalyzeForensicAsync(string evidenceId, string toolId,
         IProgress<string>? progress = null, CancellationToken cancellation = default)
     {
@@ -150,7 +136,7 @@ public sealed partial class CaseService
         var evidence = Document.Evidence.Single(e => e.Id == evidenceId);
         var input = ResolveEvidence(evidence.RelativePath);
         var run = new ForensicAnalysis { EvidenceId = evidenceId, Tool = toolId };
-        run.RelativeDirectory = $"analysis/forensics_{run.Id}";
+        run.RelativeDirectory = $"analysis/f_{run.Id[..16]}";
         var directory = ResolveAnalysisPath(run.RelativeDirectory);
         Directory.CreateDirectory(directory);
         Document.ForensicAnalyses.Add(run);
@@ -170,7 +156,6 @@ public sealed partial class CaseService
                 var tool = await FindTool(toolId, cancellation);
                 run.Version = tool.Version; run.ExecutableSha256 = tool.Hash;
                 var args = new List<string>();
-                string? staging = null;
                 if (toolId == "floss") args.AddRange(["-j", input]);
                 else if (toolId == "foremost")
                 {
@@ -183,41 +168,21 @@ public sealed partial class CaseService
                     var source = evidence.Source.ToLowerInvariant();
                     var type = source.EndsWith(".zip") ? "zip" : source.EndsWith(".tar") ? "tar" : source.EndsWith(".gz") || source.EndsWith(".tgz") ? "gz" :
                         throw new InvalidDataException("Para LEAPP importa una extracción ZIP, TAR o TAR.GZ de Android/iOS.");
-                    // LEAPP's report generator still uses some non-extended Windows paths.
-                    // A short private staging directory avoids MAX_PATH failures in deeply nested cases.
-                    staging = Path.Combine(Path.GetTempPath(), "krn-" + run.Id[..12]);
-                    Directory.CreateDirectory(staging);
-                    var mobileOutput = Path.Combine(staging, "mobile");
-                    Directory.CreateDirectory(mobileOutput);
                     normalizedSource = Path.Combine(directory, "mobile");
-                    args.AddRange(["-t", type, "-i", input, "-o", mobileOutput, "--hash", "--custom_output_folder", "report"]);
+                    Directory.CreateDirectory(normalizedSource);
+                    args.AddRange(["-t", type, "-i", CaseProcessEnvironment.ToolPath(input), "-o", CaseProcessEnvironment.ToolPath(normalizedSource), "--hash", "--custom_output_folder", "report"]);
                 }
                 run.Arguments = args;
                 await SaveAsync();
                 progress?.Report($"{toolId} {tool.Version}: analizando la copia del caso…");
-                int exit;
-                try { exit = await RunForensicProcess(tool.Executable, args, staging ?? directory, "raw", cancellation); }
-                finally
-                {
-                    if (staging is not null)
-                    {
-                        foreach (var file in new[] { "raw.stdout.json", "raw.stderr.log" })
-                            if (File.Exists(Path.Combine(staging, file))) File.Move(Path.Combine(staging, file), Path.Combine(directory, file));
-                        try
-                        {
-                            if (Directory.Exists(Path.Combine(staging, "mobile"))) await TransferMobileOutput(Path.Combine(staging, "mobile"), normalizedSource);
-                        }
-                        catch (Exception ex) { throw new IOException("No se pudo transferir la salida móvil. Temporal conservado: " + staging + ". " + ex.Message, ex); }
-                        if (!Directory.EnumerateFileSystemEntries(staging).Any()) Directory.Delete(staging);
-                    }
-                }
+                var exit = await RunForensicProcess(tool.Executable, args, directory, "raw", cancellation, progress);
                 if (exit != 0) throw new IOException($"{toolId}: código {exit}. {VolatilityRunner.ReadTail(Path.Combine(directory, "raw.stderr.log"))}");
                 if (toolId == "floss") normalizedSource = Path.Combine(directory, "raw.stdout.json");
             }
             else { run.Version = "KRONOS adapters 1"; run.ExecutableSha256 = await HashAsync(python, cancellation); }
             progress?.Report("Preparando tablas y referencias de origen…");
             var resultFile = Path.Combine(directory, "results.json");
-            var normalize = await RunForensicProcess(python, ["-I", "-X", "utf8", worker, toolId, normalizedSource, resultFile], directory, "adapter", cancellation);
+            var normalize = await RunForensicProcess(python, ["-I", "-B", "-X", "utf8", worker, toolId, normalizedSource, resultFile], directory, "adapter", cancellation);
             if (normalize != 0) throw new IOException("Adaptador: " + VolatilityRunner.ReadTail(Path.Combine(directory, "adapter.stderr.log")));
             if (new FileInfo(resultFile).Length > 128 * 1024 * 1024) throw new IOException("Tabla superior a 128 MiB; conservada en disco.");
             run.Rows = MemoryTable.Parse(await File.ReadAllTextAsync(resultFile, cancellation), 0).TotalRows;
@@ -239,10 +204,15 @@ public sealed partial class CaseService
             catch (Exception ex) { run.Integrity = "ERROR"; run.Status = "FALLO DE INTEGRIDAD"; run.Error += " " + ex.Message; }
             run.FinishedUtc = DateTimeOffset.UtcNow;
             var manifest = new List<MemoryArtifact>();
-            foreach (var file in Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories))
+            var outputFiles = await Task.Run(() => Directory.GetFiles(directory, "*", SearchOption.AllDirectories));
+            var completed = 0;
+            foreach (var file in outputFiles)
             {
+                if (completed % 200 == 0) progress?.Report($"Verificando resultados: {completed:N0} de {outputFiles.Length:N0} archivos…");
+                if (completed % 200 == 0) await Task.Yield();
                 ResolveAnalysisPath(Path.GetRelativePath(Root, file));
                 manifest.Add(new(Path.GetRelativePath(directory, file).Replace('\\', '/'), new FileInfo(file).Length, await HashAsync(file)));
+                completed++;
             }
             var manifestFile = Path.Combine(directory, "outputs-manifest.json");
             await File.WriteAllTextAsync(manifestFile, JsonSerializer.Serialize(manifest, Json));

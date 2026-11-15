@@ -19,7 +19,7 @@ public sealed class App : Application
     {
         Styles.Add(new FluentTheme());
         Styles.Add(new StyleInclude(new Uri("avares://Kronos.Desktop")) { Source = new Uri("avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml") });
-        RequestedThemeVariant = Avalonia.Styling.ThemeVariant.Dark;
+        RequestedThemeVariant = Avalonia.Styling.ThemeVariant.Light;
     }
     public override void OnFrameworkInitializationCompleted()
     {

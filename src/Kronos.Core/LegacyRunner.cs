@@ -6,10 +6,11 @@ namespace Kronos.Core;
 public static class LegacyRunner
 {
     public static string VendorRoot => Path.Combine(AppContext.BaseDirectory, "vendor", "kronos-v1");
-    public static async Task<string> RunAsync(string executable, IEnumerable<string> arguments, CancellationToken cancellation = default)
+    public static async Task<string> RunAsync(string executable, IEnumerable<string> arguments, string workspace, CancellationToken cancellation = default)
     {
         var info = new ProcessStartInfo(executable) { UseShellExecute = false, RedirectStandardOutput = true,
             RedirectStandardError = true, CreateNoWindow = true, WorkingDirectory = VendorRoot };
+        CaseProcessEnvironment.Configure(info, workspace);
         foreach (var arg in arguments) info.ArgumentList.Add(arg);
         using var process = Process.Start(info) ?? throw new IOException("No se pudo iniciar el módulo.");
         var output = process.StandardOutput.ReadToEndAsync(cancellation);

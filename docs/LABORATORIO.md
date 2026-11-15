@@ -1,6 +1,6 @@
 # Laboratorio forense integrado
 
-En Windows abre `KRONOS.lnk`. Crea o abre un caso y entra en **Laboratorio forense**. Importa el archivo, selecciona la evidencia y la herramienta, y pulsa **Ejecutar herramienta**. No es necesario instalar estas herramientas por separado en la publicación Windows x64.
+En Windows abre `KRONOS.lnk`. La página **Inicio** guía la creación o apertura del caso. Usa la navegación lateral: **Evidencias**, **Memoria RAM**, **Archivos y móviles**, **Informe**, **Avanzado** y **Actividad**. En **Archivos y móviles** importa el archivo, selecciona la evidencia y el tipo de análisis, y pulsa **Analizar archivo**. No es necesario instalar las herramientas por separado en la publicación Windows x64. La interfaz usa tema claro y las opciones técnicas se agrupan en secciones desplegables.
 
 | Herramienta | Entrada | Resultado y límites |
 | --- | --- | --- |
@@ -45,9 +45,11 @@ Esta versión trabaja con una **imagen forense RAW previamente adquirida**, sin 
 
 Cada ejecución registra hashes de evidencia antes/después, versión y SHA-256 del ejecutable/adaptador, argumentos, registros, tabla normalizada, cobertura, resumen y manifiesto de archivos de salida. Al mostrar tablas o importar recuperados se verifican sus hashes. El caso y sus manifiestos no están firmados independientemente.
 
-Se pueden cancelar los procesos; se conservan incidencias y salidas parciales. Cada proceso tiene 30 minutos y un límite supervisado de 10 GiB/100000 archivos de salida (se comprueba aproximadamente cada 1,5 segundos; no es una cuota de disco). La vista previa muestra hasta 10000 filas y rechaza JSON superior a 128 MiB. Una extracción móvil grande puede agotar esos límites.
+Se pueden cancelar los procesos; se conservan incidencias y salidas parciales. Cada proceso tiene 30 minutos y un límite supervisado de 10 GiB/100000 archivos de salida (se comprueba aproximadamente cada 10 segundos en segundo plano; no es una cuota de disco). La interfaz muestra el avance por artefactos cuando el motor lo emite y el contador de archivos durante la verificación final. La vista previa muestra hasta 10000 filas y rechaza JSON superior a 128 MiB. Una extracción móvil grande puede agotar esos límites.
 
-LEAPP usa un temporal corto para evitar fallos Windows con rutas largas. Al terminar se transfieren las salidas al caso, con verificación SHA-256 si cruzan de volumen. Sus reportes originales pueden conservar rutas absolutas del temporal ya retirado; consulta los artefactos conservados y sus referencias relativas. Si falla la transferencia, el error conserva la ubicación del temporal para recuperarlo.
+Todas las nuevas ejecuciones generan sus salidas directamente dentro del caso, sin una copia intermedia en el temporal de Windows. Los temporales, cachés y perfiles privados de los procesos se ubican en `.work/` dentro del caso; los resultados nuevos se guardan en `analysis/f_…/`. Esto incluye los temporales de los ejecutables portátiles de LEAPP. Se usan rutas cortas de Windows cuando existen, sin crear unidades, enlaces ni cambiar la configuración del equipo. Las limitaciones de rutas de las herramientas nativas siguen dependiendo del sistema: elegir un caso cerca de la raíz del disco reduce su longitud. No se vuelve al temporal de C: si una herramienta falla.
+
+La misma política se aplica al motor RAM y los módulos de artefactos. Las capturas y correlaciones avanzadas generan sus resultados dentro de `analysis/` del caso. Se conservan los hashes de origen y resultados; se elimina la transferencia entre volúmenes y las verificaciones redundantes de esa transferencia. Los temporales de versiones anteriores no se borran automáticamente: pueden contener evidencia pendiente de conservar. Las aplicaciones externas abiertas por el usuario, como el navegador de informes, tienen su propia configuración.
 
 `scripts/package-forensics.py` descarga exclusivamente versiones oficiales fijadas y comprueba SHA-256, compila el port Windows de Foremost desde el código incluido y genera `tools.json`. No instala herramientas globales. Los binarios son para Windows x64; el Dev Container ejecuta las pruebas de núcleo y adaptadores, y la publicación Windows valida los cuatro motores portátiles. No se incorpora la distribución CAINE ni se atribuye a KRONOS la autoría de sus herramientas.
 

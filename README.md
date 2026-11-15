@@ -13,10 +13,10 @@ Si descargas solo el código desde GitHub, el ejecutable no viene en el reposito
 ## Probar un volcado RAM
 
 1. Rellena **Nombre del caso** y **Nombre del analista forense**, pulsa **Crear caso…** y elige dónde guardar el caso.
-2. En **Análisis RAM**, pulsa **Importar volcado RAM…** y selecciona el archivo descargado, por ejemplo un `.mem`. KRONOS crea y verifica su copia; no la coloques manualmente en `evidence/`.
+2. En **Memoria RAM**, pulsa **Importar volcado RAM…** y selecciona el archivo descargado, por ejemplo un `.mem`. KRONOS crea y verifica su copia; no la coloques manualmente en `evidence/`.
 3. Selecciona la evidencia y pulsa **Analizar RAM Windows**.
 4. Revisa las pestañas de resultados. En **Símbolos y alcance** puedes elegir el perfil básico de cuatro módulos o la investigación ampliada de catorce. Puedes buscar en las filas y añadir una fila a las notas con su fuente.
-5. En **Informe editable**, completa las conclusiones, guarda las notas y genera HTML y Markdown.
+5. En **Informe**, completa las conclusiones, guarda las notas y genera HTML y Markdown.
 
 La primera ejecución puede necesitar descargar símbolos. El progreso identifica el módulo en curso y permite cancelar. Una extensión no identifica el formato ni garantiza compatibilidad. [Guía del análisis RAM](docs/MEMORIA.md).
 
@@ -26,6 +26,7 @@ La primera ejecución puede necesitar descargar símbolos. El progreso identific
 - `evidence/`: copias importadas, comparadas con el origen antes/después y con el destino mediante SHA-256.
 - `analysis/`: resultados RAM separados de la evidencia, JSON, registros, resumen, manifiesto de salidas y caché de símbolos.
 - `reports/`: informes HTML y Markdown editables.
+- `.work/`: temporales, cachés y perfiles privados de las herramientas, siempre dentro del caso. No se usa el temporal de Windows para las nuevas ejecuciones.
 
 **Verificar copias** compara los archivos con el inventario del caso. Al analizar RAM se comprueba SHA-256 antes y después; al cargar las tablas se verifica su manifiesto. El JSON y los manifiestos no están firmados ni sellados de forma independiente. Conserva y respalda la carpeta completa.
 
@@ -43,7 +44,7 @@ El análisis RAM integrado utiliza Volatility 3, versión **2.28.2** mediante m�
 
 Los módulos de adquisición y análisis de carpetas de artefactos Windows siguen disponibles en **Módulos y adquisición**. La adquisición requiere autorización explícita y privilegios adecuados, con captura RAM desactivada. Importar y analizar un volcado existente no adquiere la RAM del equipo anfitrión.
 
-El **Laboratorio forense** integra **Foremost 1.5.7-kronos1, FLOSS 3.2.0, ALEAPP 2026.4.5 e iLEAPP 2026.4.6** en la publicación Windows x64. Incluye adaptadores propios de historial de navegadores, inventario ZIP, cadenas con offsets e inventario de particiones RAW. [Guía y cobertura](docs/LABORATORIO.md).
+La sección **Archivos y móviles** integra **Foremost 1.5.7-kronos1, FLOSS 3.2.0, ALEAPP 2026.4.5 e iLEAPP 2026.4.6** en la publicación Windows x64. Incluye adaptadores propios de historial de navegadores, inventario ZIP, cadenas con offsets e inventario de particiones RAW. La interfaz clara ofrece una página de inicio con pasos y navegación lateral. [Guía y cobertura](docs/LABORATORIO.md).
 
 Pendientes: adquisición RAM, exploración completa de sistemas de archivos de discos, EWF, RAID/LVM, adquisición de teléfonos, descifrado y análisis RAM Linux/macOS. No garantiza recuperar cualquier evidencia ni determina automáticamente malicia, autoría, motivos o aficiones.
 

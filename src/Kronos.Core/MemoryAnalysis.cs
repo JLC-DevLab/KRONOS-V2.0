@@ -123,7 +123,8 @@ public sealed class VolatilityRunner(string python, string entryPath) : IMemoryR
     {
         var info = new ProcessStartInfo(python) { UseShellExecute = false, CreateNoWindow = true,
             RedirectStandardOutput = true, RedirectStandardError = true, WorkingDirectory = command.WorkingDirectory };
-        info.ArgumentList.Add("-I"); info.ArgumentList.Add("-X"); info.ArgumentList.Add("utf8"); info.ArgumentList.Add(EntryPath);
+        CaseProcessEnvironment.Configure(info, command.WorkingDirectory);
+        info.ArgumentList.Add("-I"); info.ArgumentList.Add("-B"); info.ArgumentList.Add("-X"); info.ArgumentList.Add("utf8"); info.ArgumentList.Add(EntryPath);
         foreach (var arg in command.Arguments) info.ArgumentList.Add(arg);
         info.Environment["PYTHONUTF8"] = "1";
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
@@ -148,7 +149,7 @@ public sealed class VolatilityRunner(string python, string entryPath) : IMemoryR
     public static string ReadTail(string file)
     {
         if (!File.Exists(file)) return "";
-        using var stream = File.OpenRead(file);
+        using var stream = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
         stream.Seek(Math.Max(0, stream.Length - 8192), SeekOrigin.Begin);
         using var reader = new StreamReader(stream);
         return reader.ReadToEnd();

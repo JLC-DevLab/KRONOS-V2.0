@@ -11,22 +11,23 @@ namespace Kronos.Desktop;
 
 public sealed partial class MainWindow
 {
-    private readonly ComboBox forensicEvidence = new() { PlaceholderText = "Evidencia que se examinará", HorizontalAlignment = HorizontalAlignment.Stretch };
-    private readonly ComboBox forensicTools = new() { ItemsSource = ForensicTool.Catalog, SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch };
+    private readonly ComboBox forensicEvidence = new() { PlaceholderText = "1. Selecciona un archivo del caso", HorizontalAlignment = HorizontalAlignment.Stretch };
+    private readonly ComboBox forensicTools = new() { ItemsSource = ForensicTool.Catalog, SelectedIndex = -1, PlaceholderText = "2. Elige qué quieres analizar", HorizontalAlignment = HorizontalAlignment.Stretch };
     private readonly ComboBox forensicRuns = new() { PlaceholderText = "Resultados guardados", HorizontalAlignment = HorizontalAlignment.Stretch };
-    private readonly TextBlock forensicScope = new() { TextWrapping = TextWrapping.Wrap, Foreground = Brushes.LightGray };
-    private readonly TextBlock forensicHint = new() { Text = "Importa una evidencia y elige una herramienta. Los análisis se guardan en el caso.", TextWrapping = TextWrapping.Wrap };
+    private readonly TextBlock forensicScope = new() { TextWrapping = TextWrapping.Wrap, Foreground = Brush.Parse("#536579") };
+    private readonly TextBlock forensicHint = new() { Text = "Importa una evidencia y elige una herramienta. Los análisis se guardan en el caso.", TextWrapping = TextWrapping.Wrap, MaxHeight = 90 };
     private readonly TextBox forensicQuery = new() { Watermark = "Buscar texto, URL, nombre de archivo, artefacto…" };
     private readonly Button forensicCancel = new() { Content = "Cancelar", IsEnabled = false };
     private readonly DataGrid forensicGrid = new() { IsReadOnly = true, AutoGenerateColumns = false, CanUserResizeColumns = true,
         GridLinesVisibility = DataGridGridLinesVisibility.Horizontal, FontSize = 15, RowHeight = 32, MinHeight = 150 };
     private MemoryTable? forensicTable;
     private int forensicGeneration;
+    private Button? recoveredAction;
 
     private Control CreateForensicPanel()
     {
         forensicTools.SelectionChanged += (_, _) => forensicScope.Text = (forensicTools.SelectedItem as ForensicTool)?.Scope;
-        forensicScope.Text = ForensicTool.Catalog[0].Scope;
+        forensicScope.Text = "Android → ALEAPP · iPhone/iPad → iLEAPP · Recuperación de archivos → Foremost. Los originales no se ejecutan.";
         forensicCancel.Click += (_, _) => operationCancellation?.Cancel();
         forensicRuns.SelectionChanged += async (_, _) => await LoadForensicResults();
         forensicQuery.TextChanged += (_, _) => forensicGrid.ItemsSource = forensicTable?.Rows.Where(row => row.Cells.Values.Any(v => v.Contains(forensicQuery.Text ?? "", StringComparison.OrdinalIgnoreCase))).ToList();
@@ -41,11 +42,12 @@ public sealed partial class MainWindow
         };
         var runActions = new WrapPanel();
         runActions.Children.Add(Action("Importar archivo…", Import, true));
-        runActions.Children.Add(Action("Ejecutar herramienta", RunForensic, true));
+        runActions.Children.Add(Primary(Action("Analizar archivo", RunForensic, true)));
         runActions.Children.Add(forensicCancel);
         var tableActions = new WrapPanel();
         tableActions.Children.Add(Action("Añadir fila a notas", AddForensicFinding));
-        tableActions.Children.Add(Action("Importar archivo recuperado", ImportRecovered));
+        recoveredAction = Action("Importar recuperado", ImportRecovered); recoveredAction.IsVisible = false;
+        tableActions.Children.Add(recoveredAction);
         tableActions.Children.Add(Action("Carpeta de resultados", () =>
         {
             if (forensicRuns.SelectedItem is not ForensicAnalysis run) throw new InvalidOperationException("Selecciona un análisis guardado.");
@@ -53,7 +55,10 @@ public sealed partial class MainWindow
         }));
         var choice = new Grid { ColumnDefinitions = new ColumnDefinitions("*,*"), ColumnSpacing = 10 };
         choice.Children.Add(forensicEvidence); Grid.SetColumn(forensicTools, 1); choice.Children.Add(forensicTools);
-        var top = new StackPanel { Spacing = 6, Children = { choice, forensicScope, runActions, forensicRuns, forensicQuery, tableActions } };
+        var history = new Expander { Header = "Análisis guardados · cambia de resultado", Content = forensicRuns, IsExpanded = false, HorizontalAlignment = HorizontalAlignment.Stretch };
+        var searchBar = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 10 };
+        searchBar.Children.Add(forensicQuery); Grid.SetColumn(tableActions, 1); searchBar.Children.Add(tableActions);
+        var top = new StackPanel { Spacing = 8, Children = { PageHeading("Archivos y móviles", "Elige el archivo y el tipo de análisis. Después consulta sus resultados aquí."), choice, forensicScope, runActions, history, searchBar } };
         var grid = new Grid { RowDefinitions = new RowDefinitions("Auto,*,Auto"), RowSpacing = 8 };
         grid.Children.Add(top); Grid.SetRow(forensicGrid, 1); grid.Children.Add(forensicGrid);
         Grid.SetRow(forensicHint, 2); grid.Children.Add(forensicHint);
@@ -85,6 +90,7 @@ public sealed partial class MainWindow
         var generation = ++forensicGeneration;
         forensicTable = null; forensicGrid.ItemsSource = null; forensicGrid.Columns.Clear();
         if (current is null || forensicRuns.SelectedItem is not ForensicAnalysis run) return;
+        if (recoveredAction is not null) recoveredAction.IsVisible = run.Tool == "foremost";
         forensicHint.Text = $"{run.Tool} {run.Version} · {run.Status} · integridad {run.Integrity}\n{run.Coverage}\n{run.Error}";
         if (run.Status is not ("CORRECTO" or "REVISAR COBERTURA")) return;
         try

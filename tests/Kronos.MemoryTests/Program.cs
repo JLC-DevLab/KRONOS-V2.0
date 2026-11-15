@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Jose Luis Cabanas. Volatility Software License 1.0.
 using Kronos.Core;
 
-var root = Path.GetFullPath(Path.Combine(args.Contains("--forensics") ? ".tools" : Path.GetTempPath(), "kronos-memory-synthetic-" + Guid.NewGuid().ToString("N")));
+var root = Path.GetFullPath(Path.Combine(".tools", "kronos-memory-synthetic-" + Guid.NewGuid().ToString("N")));
 Directory.CreateDirectory(root);
 var checks = 0;
 void Check(bool condition, string text) { if (!condition) throw new Exception(text); Console.WriteLine("OK " + text); checks++; }
@@ -13,6 +13,19 @@ try
     await File.WriteAllTextAsync(entry, "SYNTHETIC TEST RUNNER, NOT REAL MEMORY DATA");
     using var c = await CaseService.CreateAsync(root, "SYNTHETIC", "Pruebas automáticas");
     var evidence = await c.ImportAsync(image);
+    var hostTemp = Environment.GetEnvironmentVariable("TEMP");
+    var processWorkspace = c.ResolveAnalysisPath("analysis/environment-probe");
+    Directory.CreateDirectory(processWorkspace);
+    var environmentProbe = Path.Combine(processWorkspace, "probe.py");
+    await File.WriteAllTextAsync(environmentProbe, "import json,os,tempfile\nwith tempfile.NamedTemporaryFile(delete=False) as f: name=f.name\nprint(json.dumps(dict(temporary=name,home=os.environ['HOME'],cache=os.environ['XDG_CACHE_HOME'])))\n");
+    var environmentResult = await LegacyRunner.RunAsync(VolatilityRunner.Discover().PythonExecutable, ["-I", "-B", environmentProbe], processWorkspace);
+    using (var environmentJson = System.Text.Json.JsonDocument.Parse(environmentResult.Trim()))
+    {
+        var prefix = CaseProcessEnvironment.ToolPath(c.Root) + Path.DirectorySeparatorChar;
+        var longPrefix = c.Root + Path.DirectorySeparatorChar;
+        Check(environmentJson.RootElement.EnumerateObject().All(p => new[] { prefix, longPrefix }.Any(rootPrefix => p.Value.GetString()!.StartsWith(rootPrefix, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))), "Temporales, perfil y caché del proceso hijo permanecen dentro del caso");
+    }
+    Check(Environment.GetEnvironmentVariable("TEMP") == hostTemp, "No modifica la configuración temporal del anfitrión");
     var engine = new SyntheticRunner(entry);
     var result = await c.AnalyzeMemoryAsync(evidence.Id, engine, true);
     Check(result.Status == "COMPLETO" && result.Integrity == "COINCIDE", "Orquesta los cuatro módulos y verifica SHA-256 antes/después");

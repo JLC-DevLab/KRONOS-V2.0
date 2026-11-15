@@ -21,11 +21,14 @@ public sealed partial class MainWindow : Window
     private readonly ListBox evidenceList = new() { MinHeight = 200 };
     private readonly TextBlock title = new() { Text = "Ningún caso abierto", FontSize = 22, FontWeight = FontWeight.SemiBold };
     private readonly TextBlock summary = new() { Text = "Crea un caso o abre un archivo case.kronos.json para comenzar.", TextWrapping = TextWrapping.Wrap };
-    private readonly TextBlock status = new() { Text = "Preparado · KRONOS V2.0", TextWrapping = TextWrapping.Wrap };
+    private readonly TextBlock status = new() { Text = "Preparado · KRONOS V2.0", TextWrapping = TextWrapping.Wrap, MaxHeight = 65 };
     private readonly ProgressBar progress = new() { IsIndeterminate = true, IsVisible = false, Height = 3 };
     private readonly CheckBox consent = new() { Content = "Autorizo capturar datos del equipo actual (sin RAM).", IsChecked = false };
     private readonly TextBox python = new() { Text = DefaultPython(), Watermark = "Ruta del intérprete Python 3" };
     private readonly List<Button> buttons = [];
+    private TabControl navigation = null!;
+    private readonly TextBlock caseLocation = new() { Text = "Aún no has abierto un caso.", TextWrapping = TextWrapping.Wrap };
+    private readonly TextBlock caseOverview = new() { Text = "Empieza creando un caso o abre uno existente.", TextWrapping = TextWrapping.Wrap };
     private bool busy;
     private CancellationTokenSource? operationCancellation;
     private string? completionMessage;
@@ -34,24 +37,35 @@ public sealed partial class MainWindow : Window
     {
         Title = "KRONOS V2.0 — Laboratorio forense";
         Width = 1280; Height = 850; MinWidth = 1000; MinHeight = 700; WindowState = WindowState.Maximized;
-        Background = Brush.Parse("#101823");
+        Background = Brush.Parse("#F3F6FA");
         var header = new StackPanel { Spacing = 5, Children = {
-            new TextBlock { Text = "K R O N O S   /   V 2.0", FontSize = 24, FontWeight = FontWeight.Bold, Foreground = Brush.Parse("#54D5CB") },
-            new TextBlock { Text = "Kit de Recolección, Organización y Normalización de Observaciones de Seguridad", Foreground = Brushes.LightGray, FontSize = 13, TextWrapping = TextWrapping.Wrap },
-            new TextBlock { Text = "Developed By JLC 2026 UlysesX12", Foreground = Brushes.LightGray, FontSize = 12 }
+            new TextBlock { Text = "KRONOS / V2.0   ·   Laboratorio forense", FontSize = 24, FontWeight = FontWeight.Bold, Foreground = Brush.Parse("#174B70") },
+            new TextBlock { Text = "Kit de Recolección, Organización y Normalización de Observaciones de Seguridad", Foreground = Brush.Parse("#536579"), FontSize = 12, TextWrapping = TextWrapping.Wrap },
+            new TextBlock { Text = "Developed By JLC 2026 UlysesX12", Foreground = Brush.Parse("#536579"), FontSize = 11 }
         }};
         var createBar = new WrapPanel { Orientation = Orientation.Horizontal };
-        createBar.Children.Add(caseId); createBar.Children.Add(operatorName);
-        createBar.Children.Add(Action("Crear caso…", CreateCase));
-        createBar.Children.Add(Action("Abrir caso…", OpenCase));
-        createBar.Children.Add(Action("Carpeta del caso", () => { OpenPath(RequireCase().Root); return Task.CompletedTask; }));
+        createBar.Children.Add(new StackPanel { Spacing = 5, Margin = new Thickness(0,0,12,0), Children = { new TextBlock { Text = "Nombre del caso" }, caseId } });
+        createBar.Children.Add(new StackPanel { Spacing = 5, Children = { new TextBlock { Text = "Nombre del analista forense" }, operatorName } });
+        var caseActions = new WrapPanel();
+        caseActions.Children.Add(Primary(Action("Crear caso…", CreateCase)));
+        caseActions.Children.Add(Action("Abrir caso…", OpenCase));
+        caseActions.Children.Add(Action("Carpeta del caso", () => { OpenPath(RequireCase().Root); return Task.CompletedTask; }));
+        var welcome = new StackPanel { Spacing = 18, Children = {
+            PageHeading("Tu investigación, paso a paso", "Crea un caso, añade los archivos y elige qué quieres examinar."),
+            Card(new StackPanel { Spacing = 12, Children = { new TextBlock { Text = "1. Prepara el caso", FontSize = 20, FontWeight = FontWeight.SemiBold }, createBar, caseActions } }),
+            Card(new StackPanel { Spacing = 10, Children = { new TextBlock { Text = "2. Añade y analiza tus evidencias", FontSize = 20, FontWeight = FontWeight.SemiBold },
+                new TextBlock { Text = "Volcado Windows → Memoria RAM\nExtracción Android o iOS, ejecutable, ZIP o imagen de disco → Archivos y móviles", TextWrapping = TextWrapping.Wrap },
+                Action("Ir a evidencias →", () => { navigation.SelectedIndex = 1; return Task.CompletedTask; }) } }),
+            Card(new StackPanel { Spacing = 10, Children = { new TextBlock { Text = "3. Revisa los resultados y prepara el informe", FontSize = 20, FontWeight = FontWeight.SemiBold },
+                new TextBlock { Text = "Busca en las tablas, abre el detalle de cada fila y añade los hallazgos a tus notas con su fuente.", TextWrapping = TextWrapping.Wrap }, caseOverview, caseLocation } })
+        }};
         var evidenceActions = new WrapPanel();
-        evidenceActions.Children.Add(Action("Añadir archivos…", Import));
+        evidenceActions.Children.Add(Primary(Action("Añadir archivos…", Import, true)));
         evidenceActions.Children.Add(Action("Verificar copias", Verify));
-        var evidenceTab = new StackPanel { Spacing = 12, Children = { evidenceActions, search, evidenceList,
-            new TextBlock { Text = "Se conserva una copia por archivo y se compara SHA-256 del origen antes/después y de la copia. El tamaño de los archivos puede aumentar el tiempo de importación.", TextWrapping = TextWrapping.Wrap, Foreground = Brushes.LightGray } } };
+        var evidenceTab = new StackPanel { Spacing = 16, Children = { PageHeading("Evidencias del caso", "Añade los archivos originales. KRONOS crea y verifica sus copias dentro del caso."), evidenceActions, search, evidenceList,
+            new Expander { Header = "Cómo se verifica la integridad", Content = new TextBlock { Text = "Se compara SHA-256 del origen antes y después y de la copia. En archivos grandes, estas lecturas pueden tardar. No hace falta copiar nada manualmente a evidence/.", TextWrapping = TextWrapping.Wrap } } } };
         var reportTab = new StackPanel { Spacing = 12, Children = {
-            new TextBlock { Text = "Notas y conclusiones", FontSize = 19 }, notes,
+            PageHeading("Informe y conclusiones", "Revisa tus hallazgos, conserva sus fuentes y completa tu interpretación antes de exportar."), notes,
             Action("Guardar notas", SaveNotes), Action("Generar y abrir informe HTML + Markdown", Export)
         }};
         var modules = new StackPanel { Spacing = 12, Children = {
@@ -60,22 +74,33 @@ public sealed partial class MainWindow : Window
             python, Action("Verificar carpeta de artefactos (Windows)", VerifyLegacy),
             Action("Analizar carpeta de artefactos", AnalyzeLegacy),
             new TextBlock { Text = "Adquisición Windows", FontSize = 19 },
-            new TextBlock { Text = "Requiere Windows y ejecutar KRONOS como administrador. Recoge artefactos del equipo anfitrión con el perfil Triage. La captura RAM no está disponible: no se incluye WinPmem. Se solicitará una carpeta de destino, sin ejecutar elevación automática.", TextWrapping = TextWrapping.Wrap },
+            new TextBlock { Text = "Requiere Windows y ejecutar KRONOS como administrador. Recoge artefactos del equipo actual con el perfil Triage y los guarda dentro del caso. No incluye captura RAM ni elevación automática.", TextWrapping = TextWrapping.Wrap },
             consent, Action("Capturar datos del equipo actual…", Capture),
-            new TextBlock { Text = "Usa Análisis RAM para Volatility y Laboratorio forense para Foremost, FLOSS, ALEAPP, iLEAPP, ZIP y navegadores. LEAPP interpreta extracciones existentes; no adquiere ni desbloquea teléfonos.", TextWrapping = TextWrapping.Wrap, Foreground = Brushes.LightGray }
+            new TextBlock { Text = "Para examinar archivos ya adquiridos usa Memoria RAM o Archivos y móviles. Esta sección contiene operaciones avanzadas sobre artefactos y el equipo actual.", TextWrapping = TextWrapping.Wrap }
         }};
-        var tabs = new TabControl { ItemsSource = new[] {
-            new TabItem { Header = "Evidencias", Content = new ScrollViewer { Content = evidenceTab } },
-            new TabItem { Header = "Análisis RAM", Content = CreateMemoryPanel() },
-            new TabItem { Header = "Laboratorio forense", Content = CreateForensicPanel() },
-            new TabItem { Header = "Informe editable", Content = new ScrollViewer { Content = reportTab } },
-            new TabItem { Header = "Módulos y adquisición", Content = new ScrollViewer { Content = modules } },
-            new TabItem { Header = "Resultados y actividad", Content = results }
+        navigation = new TabControl { TabStripPlacement = Dock.Left, ItemsSource = new[] {
+            Page("Inicio", new ScrollViewer { Content = welcome }),
+            Page("1  Evidencias", new ScrollViewer { Content = evidenceTab }),
+            Page("2  Memoria RAM", CreateMemoryPanel()),
+            Page("2  Archivos y móviles", CreateForensicPanel()),
+            Page("3  Informe", new ScrollViewer { Content = reportTab }),
+            Page("Avanzado", new ScrollViewer { Content = modules }),
+            Page("Actividad", results)
         }};
-        var grid = new Grid { Margin = new Thickness(16), RowDefinitions = new RowDefinitions("Auto,Auto,Auto,Auto,*,Auto,Auto"), RowSpacing = 8 };
-        Add(grid, header, 0); Add(grid, createBar, 1); Add(grid, title, 2); Add(grid, summary, 3);
-        Add(grid, tabs, 4); Add(grid, progress, 5); Add(grid, status, 6); Content = grid;
+        var caseHeader = Card(new StackPanel { Spacing = 4, Children = { title, summary } }, 12);
+        var grid = new Grid { Margin = new Thickness(20), RowDefinitions = new RowDefinitions("Auto,Auto,*,Auto,Auto"), RowSpacing = 12 };
+        Add(grid, header, 0); Add(grid, caseHeader, 1); Add(grid, navigation, 2);
+        Add(grid, progress, 3); Add(grid, status, 4); Content = grid;
         search.TextChanged += (_, _) => RefreshEvidence();
+        evidenceList.DoubleTapped += async (_, _) =>
+        {
+            if (evidenceList.SelectedItem is not MemoryEvidenceChoice choice) return;
+            var e = choice.Evidence;
+            var detail = new Window { Title = "Evidencia · " + Path.GetFileName(e.Source), Width = 900, Height = 540,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner, Content = new TextBox { Margin = new Thickness(20), IsReadOnly = true,
+                    AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, Text = $"Archivo: {Path.GetFileName(e.Source)}\n\nTamaño: {e.Size:N0} bytes\n\nID: {e.Id}\n\nOrigen: {e.Source}\n\nCopia del caso: {e.RelativePath}\n\nSHA-256: {e.Sha256}\n\nImportación UTC: {e.ImportedUtc:O}\n\nMétodo: {e.Method}" } };
+            await detail.ShowDialog(this);
+        };
         Closing += async (_, e) =>
         {
             if (busy) { e.Cancel = true; return; }
@@ -126,7 +151,7 @@ public sealed partial class MainWindow : Window
         var parent = await Folder("Carpeta donde crear el nuevo caso");
         if (parent is null) return;
         var created = await CaseService.CreateAsync(parent, caseId.Text ?? "", operatorName.Text ?? "");
-        current?.Dispose(); current = created; LoadCase();
+        current?.Dispose(); current = created; LoadCase(); navigation.SelectedIndex = 1;
     }
     private async Task OpenCase()
     {
@@ -149,9 +174,10 @@ public sealed partial class MainWindow : Window
     {
         if (current is null) return;
         var filter = search.Text ?? "";
-        evidenceList.ItemsSource = current.Document.Evidence.Select(e => $"{Path.GetFileName(e.Source)}  ·  {e.Size:N0} bytes\nID {e.Id}\nOrigen: {e.Source}\nSHA-256: {e.Sha256}\nUTC: {e.ImportedUtc:O}")
-            .Where(line => line.Contains(filter, StringComparison.OrdinalIgnoreCase)).ToList();
-        summary.Text = $"{current.Document.Evidence.Count} evidencias · {current.Root}";
+        evidenceList.ItemsSource = current.Document.Evidence.Where(e => (e.Source + e.Id + e.Sha256).Contains(filter, StringComparison.OrdinalIgnoreCase)).Select(e => new MemoryEvidenceChoice(e)).ToList();
+        summary.Text = $"{current.Document.Evidence.Count} evidencias · {current.Document.MemoryAnalyses.Count + current.Document.ForensicAnalyses.Count} análisis guardados · trabajo dentro del caso";
+        caseLocation.Text = "Carpeta de trabajo: " + current.Root;
+        caseOverview.Text = summary.Text;
         RefreshMemory();
         RefreshForensics();
     }
@@ -195,7 +221,9 @@ public sealed partial class MainWindow : Window
         var c = RequireCase();
         try
         {
-            var output = await LegacyRunner.RunAsync(executable, args);
+            var workspace = c.ResolveAnalysisPath("analysis/legacy_" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(workspace);
+            var output = await LegacyRunner.RunAsync(executable, args, workspace);
             results.Text = output;
             await c.RecordAsync(action, string.Join(" | ", args) + "\n" + output);
         }
@@ -211,8 +239,7 @@ public sealed partial class MainWindow : Window
     private async Task AnalyzeLegacy()
     {
         var c = RequireCase(); var folder = await Folder("Carpeta de artefactos para analizar"); if (folder is null) return;
-        var parent = await Folder("Destino del análisis: fuera de la carpeta de artefactos"); if (parent is null) return;
-        var output = Path.Combine(parent, "KRONOS_ANALYSIS_" + Guid.NewGuid().ToString("N"));
+        var output = c.ResolveAnalysisPath("analysis/artifacts_" + Guid.NewGuid().ToString("N"));
         await Legacy(python.Text ?? "python3", [Path.Combine(LegacyRunner.VendorRoot, "Kronos.Correlate.py"), "--case-folder", folder, "--output-dir", output], "Analizar artefactos");
         await c.RecordAsync("Resultados de artefactos", output); OpenPath(Path.Combine(output, "INFORME_INVESTIGACION.html"));
     }
@@ -221,7 +248,8 @@ public sealed partial class MainWindow : Window
         var c = RequireCase();
         if (!OperatingSystem.IsWindows()) throw new PlatformNotSupportedException("Adquisición disponible solamente en Windows.");
         if (consent.IsChecked != true) throw new InvalidOperationException("Autoriza la captura del equipo actual antes de continuar. Para examinar un volcado descargado, usa Análisis RAM.");
-        var parent = await Folder("Destino de la adquisición Windows"); if (parent is null) return;
+        var parent = c.ResolveAnalysisPath("analysis/acquisition_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(parent);
         consent.IsChecked = false;
         await Legacy("powershell.exe", ["-NoProfile", "-NonInteractive", "-File", Path.Combine(LegacyRunner.VendorRoot, "Kronos.ps1"), "-CaseId", c.Document.Id,
             "-Operator", c.Document.Operator, "-OutputRoot", parent, "-CollectionProfile", "Triage", "-MemoryMode", "Skip"], "Adquisición Windows");

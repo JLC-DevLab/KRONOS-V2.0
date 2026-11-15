@@ -8,7 +8,7 @@ Pulsa **Crear caso…** y elige una carpeta de destino. KRONOS crea la estructur
 
 ## Importar y analizar
 
-En **Análisis RAM**, pulsa **Importar volcado RAM…** y selecciona el archivo original. No lo copies manualmente en la carpeta del caso. KRONOS copia sus bytes y verifica SHA-256 del origen antes y después y de la copia. El nombre interno de la copia no determina su formato.
+En **Memoria RAM**, pulsa **Importar volcado RAM…** y selecciona el archivo original. No lo copies manualmente en la carpeta del caso. KRONOS copia sus bytes y verifica SHA-256 del origen antes y después y de la copia. El nombre interno de la copia no determina su formato.
 
 Selecciona la evidencia y pulsa **Analizar RAM Windows**. El análisis utiliza la copia del caso en modo de lectura y comprueba su hash al comenzar y al terminar.
 

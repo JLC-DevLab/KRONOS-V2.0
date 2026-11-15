@@ -22,7 +22,7 @@ public sealed partial class MainWindow
     }
     private sealed record MemoryEvidenceChoice(Evidence Evidence)
     {
-        public override string ToString() => $"{Path.GetFileName(Evidence.Source)} · {Evidence.Size:N0} bytes";
+        public override string ToString() => $"{Path.GetFileName(Evidence.Source)} · {FormatBytes(Evidence.Size)}";
     }
     private readonly ComboBox memoryEvidence = new() { PlaceholderText = "Selecciona una evidencia importada", HorizontalAlignment = HorizontalAlignment.Stretch };
     private readonly ComboBox memoryRuns = new() { PlaceholderText = "Análisis guardados del caso", HorizontalAlignment = HorizontalAlignment.Stretch };
@@ -36,7 +36,7 @@ public sealed partial class MainWindow
         })
     };
     private readonly TextBox memoryQuery = new() { Watermark = "Buscar PID, proceso, dirección IP o texto…" };
-    private readonly TextBlock memoryHint = new() { Text = "Crea un caso, importa el volcado y ejecuta el análisis Windows.", TextWrapping = TextWrapping.Wrap };
+    private readonly TextBlock memoryHint = new() { Text = "Crea un caso, importa el volcado y ejecuta el análisis Windows.", TextWrapping = TextWrapping.Wrap, MaxHeight = 80 };
     private readonly DataGrid memoryGrid = new() { IsReadOnly = true, AutoGenerateColumns = false, CanUserResizeColumns = true, GridLinesVisibility = DataGridGridLinesVisibility.Horizontal, MinHeight = 150, FontSize = 15, RowHeight = 32, ColumnHeaderHeight = 36 };
     private readonly CheckBox memoryOffline = new() { Content = "Sin conexión: usar solo símbolos disponibles", IsChecked = false };
     private readonly CheckBox memoryExtended = new() { Content = "Investigación ampliada: 14 módulos (tarda más)", IsChecked = true };
@@ -48,7 +48,7 @@ public sealed partial class MainWindow
     {
         var actions = new WrapPanel();
         actions.Children.Add(Action("Importar volcado RAM…", ImportMemory, true));
-        actions.Children.Add(Action("Analizar RAM Windows", AnalyzeMemory, true));
+        actions.Children.Add(Primary(Action("Analizar RAM Windows", AnalyzeMemory, true)));
         actions.Children.Add(memoryCancel);
         var openFolder = Action("Abrir carpeta del análisis", () =>
         {
@@ -90,10 +90,10 @@ public sealed partial class MainWindow
         searchRow.Children.Add(memoryQuery); Grid.SetColumn(resultActions, 1); searchRow.Children.Add(resultActions);
         var options = new Expander { Header = "Símbolos y alcance", IsExpanded = false, HorizontalAlignment = HorizontalAlignment.Stretch,
             Content = new StackPanel { Spacing = 6, Children = { memoryOffline, memoryExtended,
-                new TextBlock { Text = "Volatility 3 analiza la copia del caso y comprueba SHA-256 antes y después. Con conexión puede descargar símbolos de Microsoft mediante identificadores técnicos; no envía el volcado. Una extensión no garantiza compatibilidad ni un resultado completo.", FontSize = 12, Foreground = Brushes.LightGray, TextWrapping = TextWrapping.Wrap }
+                new TextBlock { Text = "Volatility 3 analiza la copia del caso y comprueba SHA-256 antes y después. Con conexión puede descargar símbolos de Microsoft mediante identificadores técnicos; no envía el volcado. Una extensión no garantiza compatibilidad ni un resultado completo.", FontSize = 12, Foreground = Brush.Parse("#536579"), TextWrapping = TextWrapping.Wrap }
             } } };
         var moduleScroll = new ScrollViewer { Content = memoryModules, HorizontalScrollBarVisibility = ScrollBarVisibility.Auto, VerticalScrollBarVisibility = ScrollBarVisibility.Disabled };
-        var controls = new StackPanel { Spacing = 6, Children = { evidenceRow, historyRow, moduleScroll, searchRow, options } };
+        var controls = new StackPanel { Spacing = 8, Children = { PageHeading("Memoria RAM de Windows", "Selecciona el volcado, inicia el análisis y explora sus procesos, sesiones y conexiones."), evidenceRow, historyRow, moduleScroll, searchRow, options } };
         var grid = new Grid { RowDefinitions = new RowDefinitions("Auto,*,Auto"), RowSpacing = 8 };
         grid.Children.Add(controls); Grid.SetRow(memoryGrid, 1); grid.Children.Add(memoryGrid);
         Grid.SetRow(memoryHint, 2); grid.Children.Add(memoryHint);
