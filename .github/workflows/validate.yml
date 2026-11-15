@@ -1,4 +1,4 @@
-name: Validar KRONOS
+name: Validar KRONOS Linux
 
 on:
   push:
@@ -33,17 +33,9 @@ jobs:
       - run: python tests/test_legacy.py
       - run: python tests/test_sync_git.py
       - run: python tests/test_forensics.py
-  container:
+  linux-package:
+    needs: tests
     runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
-      - name: Construir el entorno de desarrollo
-        run: docker build --network=host -f .devcontainer/Dockerfile -t kronos-dev .
-      - name: Ejecutar las pruebas en el contenedor
-        run: docker run --rm -v "$PWD:/workspaces/kronos" -w /workspaces/kronos kronos-dev sh scripts/test.sh
-  windows-package:
-    needs: [tests, container]
-    runs-on: windows-latest
     env:
       DOTNET_CLI_TELEMETRY_OPTOUT: '1'
       AVALONIA_TELEMETRY_OPTOUT: '1'
@@ -55,11 +47,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
-      - name: Preparar ejecutable con motor RAM incluido
-        run: powershell -NoProfile -File scripts/build.ps1 -Publish -Runtime win-x64
+      - name: Preparar aplicación nativa y motores Linux
+        run: python scripts/setup-linux.py
+      - name: Crear paquete sin evidencias ni entornos Python no portables
+        run: python scripts/bundle-linux.py
       - uses: actions/upload-artifact@v4
         with:
-          name: KRONOS-windows-x64
-          path: artifacts/win-x64/
-          include-hidden-files: true
+          name: KRONOS-Linux
+          path: artifacts/KRONOS-Linux.zip
           retention-days: 14

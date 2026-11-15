@@ -1,0 +1,17 @@
+#!/bin/sh
+# Copyright 2026 JLC / UlysesX12. Volatility Software License 1.0.
+set -eu
+KRONOS_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+KRONOS_ENV="$KRONOS_ROOT/Evidencias/venv"
+if ! python3 "$KRONOS_ROOT/scripts/setup-linux.py" --check; then
+    python3 "$KRONOS_ROOT/scripts/setup-linux.py"
+fi
+export KRONOS_MEMORY_PYTHON="$KRONOS_ENV/bin/python"
+export KRONOS_TOOLS_ROOT="$KRONOS_ENV/tools"
+export KRONOS_CASES_ROOT="$KRONOS_ENV/Trabajo"
+export KRONOS_INPUT_ROOT="$KRONOS_ROOT/Evidencias"
+export XDG_CACHE_HOME="$KRONOS_ENV/cache/gui"
+export XDG_CONFIG_HOME="$KRONOS_ENV/home/config"
+export TMPDIR="$KRONOS_ENV/tmp"
+export DOTNET_CLI_TELEMETRY_OPTOUT=1
+exec "$KRONOS_ENV/app/Kronos.Desktop" "$@"

@@ -27,6 +27,7 @@ public sealed record Evidence(string Id, string Source, string RelativePath, lon
 {
     public string? ParentEvidenceId { get; init; }
     public string? DerivedFrom { get; init; }
+    public EvidenceIdentification? Identification { get; init; }
 }
 public sealed record Operation(DateTimeOffset Utc, string Action, string Detail);
 public sealed record Verification(string EvidenceId, string Status, string Detail);

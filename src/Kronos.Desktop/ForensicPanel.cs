@@ -23,6 +23,8 @@ public sealed partial class MainWindow
     private MemoryTable? forensicTable;
     private int forensicGeneration;
     private Button? recoveredAction;
+    private readonly ComboBox forensicCategories=new(){PlaceholderText="Ver por categoría",HorizontalAlignment=HorizontalAlignment.Stretch};
+    private bool updatingCategories;
 
     private Control CreateForensicPanel()
     {
@@ -30,6 +32,7 @@ public sealed partial class MainWindow
         forensicScope.Text = "Android → ALEAPP · iPhone/iPad → iLEAPP · Recuperación de archivos → Foremost. Los originales no se ejecutan.";
         forensicCancel.Click += (_, _) => operationCancellation?.Cancel();
         forensicRuns.SelectionChanged += async (_, _) => await LoadForensicResults();
+        forensicCategories.SelectionChanged+=async(_,_)=>{if(!updatingCategories)await LoadForensicResults();};
         forensicQuery.TextChanged += (_, _) => forensicGrid.ItemsSource = forensicTable?.Rows.Where(row => row.Cells.Values.Any(v => v.Contains(forensicQuery.Text ?? "", StringComparison.OrdinalIgnoreCase))).ToList();
         forensicGrid.DoubleTapped += async (_, _) =>
         {
@@ -45,10 +48,11 @@ public sealed partial class MainWindow
         runActions.Children.Add(Primary(Action("Analizar archivo", RunForensic, true)));
         runActions.Children.Add(forensicCancel);
         var tableActions = new WrapPanel();
+        tableActions.Children.Add(Primary(Action("Ver fotos",OpenGallery)));
         tableActions.Children.Add(Action("Añadir fila a notas", AddForensicFinding));
         recoveredAction = Action("Importar recuperado", ImportRecovered); recoveredAction.IsVisible = false;
         tableActions.Children.Add(recoveredAction);
-        tableActions.Children.Add(Action("Carpeta de resultados", () =>
+        runActions.Children.Add(Action("Carpeta de resultados", () =>
         {
             if (forensicRuns.SelectedItem is not ForensicAnalysis run) throw new InvalidOperationException("Selecciona un análisis guardado.");
             OpenPath(RequireCase().ResolveAnalysisPath(run.RelativeDirectory)); return Task.CompletedTask;
@@ -56,9 +60,12 @@ public sealed partial class MainWindow
         var choice = new Grid { ColumnDefinitions = new ColumnDefinitions("*,*"), ColumnSpacing = 10 };
         choice.Children.Add(forensicEvidence); Grid.SetColumn(forensicTools, 1); choice.Children.Add(forensicTools);
         var history = new Expander { Header = "Análisis guardados · cambia de resultado", Content = forensicRuns, IsExpanded = false, HorizontalAlignment = HorizontalAlignment.Stretch };
+        var categoriesRow=new Grid{ColumnDefinitions=new ColumnDefinitions("*,*"),ColumnSpacing=10};
+        categoriesRow.Children.Add(history);Grid.SetColumn(forensicCategories,1);categoriesRow.Children.Add(forensicCategories);
         var searchBar = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 10 };
         searchBar.Children.Add(forensicQuery); Grid.SetColumn(tableActions, 1); searchBar.Children.Add(tableActions);
-        var top = new StackPanel { Spacing = 8, Children = { PageHeading("Archivos y móviles", "Elige el archivo y el tipo de análisis. Después consulta sus resultados aquí."), choice, forensicScope, runActions, history, searchBar } };
+        var manual=new Expander{Header="Análisis manual y perfiles avanzados (opcional)",IsExpanded=false,HorizontalAlignment=HorizontalAlignment.Stretch,Content=new StackPanel{Spacing=8,Children={choice,forensicScope,runActions}}};
+        var top = new StackPanel { Spacing = 8, Children = { PageHeading("Resultados de la investigación", "Mensajes, identidad, llamadas, ubicaciones y fotos, con sus fuentes."), categoriesRow, searchBar,manual } };
         var grid = new Grid { RowDefinitions = new RowDefinitions("Auto,*,Auto"), RowSpacing = 8 };
         grid.Children.Add(top); Grid.SetRow(forensicGrid, 1); grid.Children.Add(forensicGrid);
         Grid.SetRow(forensicHint, 2); grid.Children.Add(forensicHint);
@@ -90,15 +97,25 @@ public sealed partial class MainWindow
         var generation = ++forensicGeneration;
         forensicTable = null; forensicGrid.ItemsSource = null; forensicGrid.Columns.Clear();
         if (current is null || forensicRuns.SelectedItem is not ForensicAnalysis run) return;
+        var options=new[]{"Todos los resultados"}.Concat(run.Categories.Where(p=>p.Key!="Cobertura").OrderBy(p=>p.Key).Select(p=>$"{p.Key} ({p.Value:N0})")).Append("Cobertura").ToList();
+        var previous=forensicCategories.SelectedItem as string;
+        updatingCategories=true;
+        forensicCategories.ItemsSource=options;forensicCategories.SelectedItem=options.Contains(previous??"")?previous:options.FirstOrDefault(s=>s.StartsWith("Identidad y cuentas (",StringComparison.Ordinal))??options[0];
+        updatingCategories=false;
+        forensicTools.SelectedItem=ForensicTool.Catalog.FirstOrDefault(t=>t.Id==run.Tool);
         if (recoveredAction is not null) recoveredAction.IsVisible = run.Tool == "foremost";
         forensicHint.Text = $"{run.Tool} {run.Version} · {run.Status} · integridad {run.Integrity}\n{run.Coverage}\n{run.Error}";
         if (run.Status is not ("CORRECTO" or "REVISAR COBERTURA")) return;
         try
         {
-            var table = await current.LoadForensicTableAsync(run);
+            var selection=forensicCategories.SelectedItem as string;
+            var category=selection is null||selection=="Todos los resultados"?null:selection.Split(" (")[0];
+            var table = await current.LoadForensicTableAsync(run,category);
             if (generation != forensicGeneration) return;
             forensicTable = table;
-            foreach (var column in table.Columns)
+            var visibleColumns=new[]{"Resumen","Categoria","Nombre","Titulo","Texto","URL","UTC"}.Where(table.Columns.Contains).Concat(table.Columns).Distinct();
+            if(table.Columns.Contains("Resumen"))visibleColumns=visibleColumns.Where(key=>key is not("Datos" or "Artefacto" or "Fuente"));
+            foreach (var column in visibleColumns)
             {
                 var key = column;
                 forensicGrid.Columns.Add(new DataGridTextColumn { Header = key, MaxWidth = 650,

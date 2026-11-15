@@ -95,7 +95,7 @@ public sealed class VolatilityRunner(string python, string entryPath) : IMemoryR
         var entry = FindResource("volatility_entry.py");
         var configured = Environment.GetEnvironmentVariable("KRONOS_MEMORY_PYTHON");
         var packaged = directories.Select(d => Path.Combine(d, "runtime", "python", "python.exe")).FirstOrDefault(File.Exists);
-        var local = directories.Select(d => Path.Combine(d, ".tools", "memory", OperatingSystem.IsWindows() ? "Scripts/python.exe" : "bin/python")).FirstOrDefault(File.Exists);
+        var local = directories.Select(d => Path.Combine(d, ".venv", OperatingSystem.IsWindows() ? "Scripts/python.exe" : "bin/python")).FirstOrDefault(File.Exists) ?? directories.Select(d => Path.Combine(d, ".tools", "memory", OperatingSystem.IsWindows() ? "Scripts/python.exe" : "bin/python")).FirstOrDefault(File.Exists);
         var executable = !string.IsNullOrWhiteSpace(configured) ? configured : packaged ?? local ??
             (File.Exists("/opt/kronos-memory/bin/python") ? "/opt/kronos-memory/bin/python" : OperatingSystem.IsWindows() ? "python" : "python3");
         return new(executable, entry);

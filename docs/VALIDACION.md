@@ -2,13 +2,15 @@
 
 KRONOS incluye gestión de casos, copia y verificación de evidencias, análisis RAM Windows con Volatility 3, tabla de resultados con búsqueda, notas con referencias de fuente e informes HTML/Markdown.
 
+La versión principal es ahora Linux/Kali. Se ha compilado y ejecutado de forma nativa en la VM de Kali del usuario, con el runtime y herramientas dentro de `Evidencias/venv`. Las pruebas de integración ejecutan los motores Linux reales sobre datos sintéticos: historial Android/iOS, PE para FLOSS, carving Foremost, identificación y galería. La galería se prueba con una miniatura decodificada por Skia dentro de KRONOS, no mediante un visor externo. Los resultados por categoría conservan las referencias a las salidas originales. El TAR del usuario no se usa en estas pruebas.
+
 ## Pruebas automatizadas
 
 - Núcleo: SHA-256 conocido, origen intacto, copia verificada, persistencia, apertura concurrente, nombres con espacios/tildes, exportación, alteraciones, ausencias, archivos ajenos, rutas fuera del caso y cancelación.
 - RAM: perfiles de cuatro y catorce módulos mediante datos sintéticos, referencias JSON Pointer, límite de vista previa, salidas vacías, resultados parciales, rechazo de evidencia alterada, detección de JSON alterado, cancelación, historial e informes.
 - Motor real: Volatility instalado y runtime Python empaquetado rechazan un archivo de ceros sintéticos como imagen compatible; no se transforma ese error en resultados válidos.
 - Interfaz headless: tema claro, inicio guiado y siete páginas con navegación lateral, recuperación tras un error, tabla RAM y tabla de archivos con filas verificadas de un caso sintético guardado y altura de lectura comprobada. El modo `--screenshots` renderiza capturas con Skia, usando solo datos sintéticos.
-- Laboratorio: ocho pruebas Python de adaptadores, incluidos offsets, cruce de bloques, SQLite sin modificar, ZIP con rutas peligrosas, GPT 4K/CRC y MBR/NTFS.
+- Laboratorio: pruebas Python de adaptadores, incluidos offsets, cruce de bloques, SQLite sin modificar, ZIP con rutas peligrosas, GPT 4K/CRC, MBR/NTFS, identificación estructural, categorías y copia de imágenes.
 - Motores portátiles reales: Foremost recupera candidatos de una imagen construida; FLOSS encuentra una cadena conocida de un PE compilado para la prueba; ALEAPP interpreta historial Chromium Android e iLEAPP historial Safari iOS sintéticos. Orquestación, hashes, manifiestos, evidencias derivadas y manipulación de resultados se prueban desde el núcleo .NET. Un proceso Python real comprueba que temporales, perfil y caché quedan dentro del caso y que no se altera el entorno temporal del anfitrión. Las extracciones móviles se generan directamente dentro del caso, sin transferencia desde el temporal de Windows.
 - Módulos de artefactos: base Chromium SQLite sintética, generación de resultados, fuente intacta y detección de alteración.
 - Sincronización Git: repositorios temporales, historial inicial, conservación de archivos, rechazo de diferencias y protección de commits existentes.

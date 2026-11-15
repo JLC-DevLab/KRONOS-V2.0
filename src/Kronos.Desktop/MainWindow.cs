@@ -55,14 +55,14 @@ public sealed partial class MainWindow : Window
             Card(new StackPanel { Spacing = 12, Children = { new TextBlock { Text = "1. Prepara el caso", FontSize = 20, FontWeight = FontWeight.SemiBold }, createBar, caseActions } }),
             Card(new StackPanel { Spacing = 10, Children = { new TextBlock { Text = "2. Añade y analiza tus evidencias", FontSize = 20, FontWeight = FontWeight.SemiBold },
                 new TextBlock { Text = "Volcado Windows → Memoria RAM\nExtracción Android o iOS, ejecutable, ZIP o imagen de disco → Archivos y móviles", TextWrapping = TextWrapping.Wrap },
-                Action("Ir a evidencias →", () => { navigation.SelectedIndex = 1; return Task.CompletedTask; }) } }),
+                Action("Preparar una copia →", () => { navigation.SelectedIndex = 1; return Task.CompletedTask; }) } }),
             Card(new StackPanel { Spacing = 10, Children = { new TextBlock { Text = "3. Revisa los resultados y prepara el informe", FontSize = 20, FontWeight = FontWeight.SemiBold },
                 new TextBlock { Text = "Busca en las tablas, abre el detalle de cada fila y añade los hallazgos a tus notas con su fuente.", TextWrapping = TextWrapping.Wrap }, caseOverview, caseLocation } })
         }};
         var evidenceActions = new WrapPanel();
         evidenceActions.Children.Add(Primary(Action("Añadir archivos…", Import, true)));
         evidenceActions.Children.Add(Action("Verificar copias", Verify));
-        var evidenceTab = new StackPanel { Spacing = 16, Children = { PageHeading("Evidencias del caso", "Añade los archivos originales. KRONOS crea y verifica sus copias dentro del caso."), evidenceActions, search, evidenceList,
+        var evidenceTab = new StackPanel { Spacing = 16, Children = { PageHeading("Copias del caso", "El archivo que aportas se conserva. KRONOS analiza su copia exacta dentro de la carpeta de trabajo."), GuidedPreparation(), evidenceActions, search, evidenceList,
             new Expander { Header = "Cómo se verifica la integridad", Content = new TextBlock { Text = "Se compara SHA-256 del origen antes y después y de la copia. En archivos grandes, estas lecturas pueden tardar. No hace falta copiar nada manualmente a evidence/.", TextWrapping = TextWrapping.Wrap } } } };
         var reportTab = new StackPanel { Spacing = 12, Children = {
             PageHeading("Informe y conclusiones", "Revisa tus hallazgos, conserva sus fuentes y completa tu interpretación antes de exportar."), notes,
@@ -80,11 +80,16 @@ public sealed partial class MainWindow : Window
         }};
         navigation = new TabControl { TabStripPlacement = Dock.Left, ItemsSource = new[] {
             Page("Inicio", new ScrollViewer { Content = welcome }),
-            Page("1  Evidencias", new ScrollViewer { Content = evidenceTab }),
+            Page("1  Preparar copia", new ScrollViewer { Content = evidenceTab }),
             Page("2  Memoria RAM", CreateMemoryPanel()),
             Page("2  Archivos y móviles", CreateForensicPanel()),
             Page("3  Informe", new ScrollViewer { Content = reportTab }),
-            Page("Avanzado", new ScrollViewer { Content = modules }),
+            Page("Avanzado", new ScrollViewer { Content = OperatingSystem.IsWindows()?modules:new StackPanel { Spacing=16,Children={
+                PageHeading("Cobertura y verificación", "KRONOS Laboratorio examina copias de trabajo; no adquiere automáticamente dispositivos físicos."),
+                new TextBlock { Text="La identificación propone perfiles compatibles. Si el formato es ambiguo o no tiene un motor disponible, se registra la limitación. Los hashes documentan integridad respecto del caso; no sustituyen un sellado independiente.",TextWrapping=TextWrapping.Wrap },
+                Action("Verificar las copias del caso",Verify),
+                new TextBlock { Text="Para cada análisis se conservan argumentos, versiones, registros, resultados y manifiestos. En Archivos y móviles puedes revisar la categoría Cobertura y los análisis guardados.",TextWrapping=TextWrapping.Wrap }
+            } } }),
             Page("Actividad", results)
         }};
         var caseHeader = Card(new StackPanel { Spacing = 4, Children = { title, summary } }, 12);
@@ -116,7 +121,7 @@ public sealed partial class MainWindow : Window
             if (current is not null && current.Document.Notes != (notes.Text ?? ""))
                 status.Text = "Notas sin guardar. Pulsa Guardar notas antes de cerrar.";
         };
-        if (initialCase is not null) { current = initialCase; LoadCase(); }
+        if (initialCase is not null) { current = initialCase; LoadCase(); if(initialCase.Document.ForensicAnalyses.Count>0)navigation.SelectedIndex=3; }
     }
     private static void Add(Grid grid, Control control, int row) { Grid.SetRow(control, row); grid.Children.Add(control); }
     private Button Action(string label, Func<Task> operation, bool cancellable = false)
@@ -148,7 +153,8 @@ public sealed partial class MainWindow : Window
     private async Task CreateCase()
     {
         await SaveCurrentNotes();
-        var parent = await Folder("Carpeta donde crear el nuevo caso");
+        var configured=Environment.GetEnvironmentVariable("KRONOS_CASES_ROOT");
+        var parent = configured is not null ? configured : await Folder("Carpeta donde crear el nuevo caso");
         if (parent is null) return;
         var created = await CaseService.CreateAsync(parent, caseId.Text ?? "", operatorName.Text ?? "");
         current?.Dispose(); current = created; LoadCase(); navigation.SelectedIndex = 1;

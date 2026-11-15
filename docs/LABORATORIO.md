@@ -1,5 +1,7 @@
 # Laboratorio forense integrado
 
+La versión principal funciona en Kali Linux con preparación automática de copias, identificación, categorías y galería. Consulta primero [Linux y organización del entorno](LINUX.md). Las indicaciones Windows de este documento describen la publicación anterior y las funciones conservadas para compatibilidad.
+
 En Windows abre `KRONOS.lnk`. La página **Inicio** guía la creación o apertura del caso. Usa la navegación lateral: **Evidencias**, **Memoria RAM**, **Archivos y móviles**, **Informe**, **Avanzado** y **Actividad**. En **Archivos y móviles** importa el archivo, selecciona la evidencia y el tipo de análisis, y pulsa **Analizar archivo**. No es necesario instalar las herramientas por separado en la publicación Windows x64. La interfaz usa tema claro y las opciones técnicas se agrupan en secciones desplegables.
 
 | Herramienta | Entrada | Resultado y límites |
@@ -12,7 +14,7 @@ En Windows abre `KRONOS.lnk`. La página **Inicio** guía la creación o apertur
 | Navegadores | SQLite Chromium `History`, Firefox `places.sqlite`, Safari `History.db` | Visitas con fuente e ID de registro y consulta `q` de URLs de GitHub. Solo base principal: no reconstruye WAL, borrados ni navegación privada. |
 | ZIP | Archivo ZIP | Nombres, tamaños, compresión, CRC, marca de cifrado y rutas peligrosas del directorio central. Sin ejecutar ni extraer. No obtiene contraseñas ni certifica seguridad del contenido. |
 | Cadenas | Archivo, ejecutable, RAM o imagen | ASCII/UTF-16LE imprimibles, mínimo 6 caracteres, con offsets. Hasta 100000 cadenas de hasta 4096 bytes. Son indicios: una URL en RAM no acredita una visita. |
-| Discos RAW | Imagen de disco o volumen RAW | GPT con sectores 512/4096 y CRC32, MBR primario con sector 512 y firmas NTFS/FAT/exFAT/ext/XFS/BitLocker/LUKS. No enumera archivos, interpreta EWF/VHD/VMDK, recorre EBR, reconstruye RAID/LVM ni descifra. |
+| Discos RAW | Imagen de disco o volumen RAW | GPT con sectores 512/4096 y CRC32, MBR primario con sector 512 y firmas de volúmenes. En Kali, The Sleuth Kit permite listar archivos y sus metadatos de sistemas compatibles, sin montar la imagen. No interpreta cualquier contenedor, recorre EBR, reconstruye RAID/LVM ni descifra. |
 
 ## Leer y encadenar resultados
 

@@ -14,6 +14,8 @@ import unittest
 import zipfile
 import uuid
 import zlib
+import io
+import tarfile
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 WORKER = ROOT / 'engines/forensics/worker.py'
@@ -108,9 +110,41 @@ class Adapters(unittest.TestCase):
         rows = self.run_worker('aleapp', folder)
         self.assertIn('<script>', rows[0]['Datos'])
         self.assertEqual(rows[0]['Fuente'], 'synthetic.tsv: TSV línea 2')
+    def identify(self,source):
+        output=self.root/'identified.json'
+        subprocess.run([sys.executable,'-I',str(ROOT/'engines/forensics/identify.py'),str(source),str(output)],check=True)
+        return json.loads(output.read_text(encoding='utf-8'))
+    def test_identification_uses_structure_not_extension(self):
+        source=self.root/'fake.mem';source.write_bytes(b'NOT A MEMORY IMAGE')
+        self.assertEqual(self.identify(source)['Kind'],'SIN_IDENTIFICAR')
+        source=self.root/'android.tar'
+        with tarfile.open(source,'w') as archive:
+            entry=tarfile.TarInfo('data/data/com.android.chrome/app_chrome/Default/History');entry.size=4
+            archive.addfile(entry,io.BytesIO(b'TEST'))
+        identified=self.identify(source)
+        self.assertEqual(identified['Kind'],'ANDROID')
+        self.assertEqual(identified['SuggestedTools'],['aleapp'])
+    def test_mobile_categories_and_spanish_fields(self):
+        folder=self.root/'mobile';folder.mkdir()
+        (folder/'SMS Messages.tsv').write_text('Phone Number\tBody\n12345\tSYNTHETIC MESSAGE\n')
+        rows=self.run_worker('aleapp',folder)
+        self.assertEqual(rows[0]['Categoria'],'Mensajes')
+        self.assertIn('Contenido',rows[0]['Datos'])
+    def test_media_copy_is_exact(self):
+        source=self.root/'synthetic.png';source.write_bytes(make_png())
+        rows=self.run_worker('media',source)
+        self.assertEqual((self.root/'recovered/imagen_aportada.png').read_bytes(),source.read_bytes())
+        self.assertEqual(rows[0]['Categoria'],'Fotos')
+
+def make_png():
+    def chunk(kind,data):return struct.pack('>I',len(data))+kind+data+struct.pack('>I',zlib.crc32(kind+data))
+    width,height=24,16
+    data=b''.join(b'\x00'+bytes([40,140,190])*width for _ in range(height))
+    return b'\x89PNG\r\n\x1a\n'+chunk(b'IHDR',struct.pack('>IIBBBBB',width,height,8,2,0,0,0))+chunk(b'IDAT',zlib.compress(data))+chunk(b'IEND',b'')
 
 def prepare_real_fixtures(destination):
     destination.mkdir(parents=True, exist_ok=True)
+    (destination/'synthetic.png').write_bytes(make_png())
     history = destination / 'History'
     if history.exists(): history.unlink()
     make_history(history)

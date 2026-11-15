@@ -13,6 +13,13 @@ try
     await File.WriteAllTextAsync(entry, "SYNTHETIC TEST RUNNER, NOT REAL MEMORY DATA");
     using var c = await CaseService.CreateAsync(root, "SYNTHETIC", "Pruebas automáticas");
     var evidence = await c.ImportAsync(image);
+    var unknown=await c.IdentifyAsync(evidence.Id);
+    Check(unknown.Kind=="SIN_IDENTIFICAR","No identifica RAM solo por la extensión .mem de un archivo de ceros");
+    var maliciousPng=new byte[24];new byte[]{137,80,78,71,13,10,26,10}.CopyTo(maliciousPng,0);
+    System.Buffers.Binary.BinaryPrimitives.WriteInt32BigEndian(maliciousPng.AsSpan(16),1000000);
+    System.Buffers.Binary.BinaryPrimitives.WriteInt32BigEndian(maliciousPng.AsSpan(20),1000000);
+    try{CaseService.ReadPhotoDimensions(maliciousPng);throw new Exception("Aceptó dimensiones desmesuradas");}
+    catch(InvalidDataException){Check(true,"Galería limita dimensiones antes de solicitar decodificación nativa");}
     var hostTemp = Environment.GetEnvironmentVariable("TEMP");
     var processWorkspace = c.ResolveAnalysisPath("analysis/environment-probe");
     Directory.CreateDirectory(processWorkspace);
@@ -71,7 +78,7 @@ try
             ("zip", "synthetic.zip", "SYNTHETIC.txt"), ("strings", "carving.bin", "SYNTHETIC"),
             ("browser", "History", "forensic synthetic"), ("disk", "carving.bin", "Imagen sin tabla"),
             ("foremost", "carving.bin", "Archivo recuperado"), ("floss", "sample.exe", "KRONOS_SYNTHETIC_FLOSS_MARKER"),
-            ("aleapp", "android.zip", "forensic+synthetic"), ("ileapp", "ios.zip", "SYNTHETIC SAFARI") })
+            ("aleapp", "android.zip", "forensic+synthetic"), ("ileapp", "ios.zip", "SYNTHETIC SAFARI"),("media","synthetic.png","Imagen aportada") })
         {
             var item = await c.ImportAsync(Path.Combine(fixtures, file));
             Console.WriteLine("Ejecutando motor real " + tool + " sobre fixture sintético…");
@@ -80,6 +87,15 @@ try
             Check(forensic.Integrity == "COINCIDE", $"{tool} conserva la evidencia sin modificarla");
             var forensicTable = await c.LoadForensicTableAsync(forensic);
             Check(forensicTable.Rows.Any(row => row.Cells.Values.Any(value => value.Contains(expected))), $"{tool} muestra el contenido sintético esperado con fuentes");
+            if(tool=="aleapp")Check((await c.IdentifyAsync(item.Id)).Kind=="ANDROID"&&forensic.Categories.ContainsKey("Navegación"),"Identifica la extracción Android y agrupa su historial en español");
+            if(tool=="media")
+            {
+                var catalog=await c.LoadPhotosAsync(forensic);
+                Check(catalog.Count==1&&(await c.LoadPhotoBytesAsync(forensic,catalog[0])).Length>50,"Galería ofrece bytes de imagen verificados, sin aplicaciones externas");
+                await File.AppendAllTextAsync(c.ResolveAnalysisPath(forensic.RelativeDirectory+"/"+catalog[0].File),"CHANGED");
+                try{await c.LoadPhotoBytesAsync(forensic,catalog[0]);throw new Exception("Aceptó imagen alterada");}
+                catch(InvalidDataException){Check(true,"La galería rechaza una imagen alterada");}
+            }
             if (tool == "foremost")
             {
                 var recovered = forensicTable.Rows.First(row => row.Cells.GetValueOrDefault("Tipo") == "Archivo recuperado por firma");

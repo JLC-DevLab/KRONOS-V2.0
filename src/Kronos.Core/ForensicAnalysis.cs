@@ -24,6 +24,7 @@ public sealed class ForensicAnalysis
     public string Coverage { get; set; } = "";
     public string Error { get; set; } = "";
     public int Rows { get; set; }
+    public Dictionary<string,int> Categories { get; set; } = [];
     public List<string> Arguments { get; set; } = [];
     public override string ToString() => $"{StartedUtc:yyyy-MM-dd HH:mm} UTC · {Tool} · {Status} · {Rows:N0} filas";
 }
@@ -32,7 +33,9 @@ public sealed record ForensicTool(string Id, string Name, string Scope)
 {
     public override string ToString() => Name;
     public static readonly ForensicTool[] Catalog = [
-        new("disk", "Discos RAW · particiones y volúmenes", "Imagen de disco o volumen RAW: GPT/MBR y firmas NTFS, FAT, exFAT, ext, XFS, BitLocker y LUKS. No enumera archivos, reconstruye RAID ni descifra volúmenes."),
+        new("media","Fotos · galería","Visualiza una imagen aportada con referencia y SHA-256, sin abrir aplicaciones externas."),
+        new("archive","Contenido de TAR / ZIP","Inventario seguro del contenedor; la identificación automática propone un perfil móvil cuando reconoce su estructura."),
+        new("disk", "Discos RAW · particiones y archivos", "Imagen RAW: particiones y listado de archivos con The Sleuth Kit cuando está disponible y reconoce el sistema. Sin reconstrucción RAID ni descifrado."),
         new("foremost", "Foremost · recuperar imágenes y archivos", "Volcados RAM e imágenes sin compresión. Recuperación por firmas; archivos fragmentados pueden quedar incompletos."),
         new("floss", "FLOSS · cadenas de ejecutables", "Archivos PE compatibles, cadenas estáticas y descodificadas. No determina si un archivo es malicioso."),
         new("aleapp", "Android · ALEAPP", "Extracciones de sistema de archivos Android en ZIP/TAR/TAR.GZ. Analiza una extracción existente; no adquiere ni desbloquea teléfonos."),
@@ -56,7 +59,8 @@ public sealed partial class CaseService
 
     private static async Task<(string Executable, string Version, string Hash)> FindTool(string id, CancellationToken cancellation)
     {
-        var receipt = ToolRoots().SelectMany(r => new[] { Path.Combine(r, "runtime", "tools", "tools.json"), Path.Combine(r, ".tools", "forensic-tools", "tools.json") })
+        var configured = Environment.GetEnvironmentVariable("KRONOS_TOOLS_ROOT");
+        var receipt = (configured is null ? Enumerable.Empty<string>() : new[] { Path.Combine(configured,"tools.json") }).Concat(ToolRoots().SelectMany(r => new[] { Path.Combine(r, ".venv", "tools", "tools.json"), Path.Combine(r, "runtime", "tools", "tools.json"), Path.Combine(r, ".tools", "forensic-tools", "tools.json") }))
             .FirstOrDefault(File.Exists) ?? throw new FileNotFoundException("Falta el paquete de herramientas forenses. Prepara la publicación con scripts/package-forensics.py.");
         using var doc = JsonDocument.Parse(await File.ReadAllTextAsync(receipt, cancellation));
         var tool = doc.RootElement.EnumerateArray().Single(t => t.GetProperty("id").GetString() == id);
@@ -149,6 +153,10 @@ public sealed partial class CaseService
             if (guard.Length != evidence.Size || run.SourceSha256Before != evidence.Sha256) throw new InvalidDataException("La evidencia ha cambiado. No se ejecuta el análisis.");
             var worker = WorkerPath();
             run.AdapterSha256 = await HashAsync(worker, cancellation);
+            var adapterSnapshot=Path.Combine(directory,"adapter.py");
+            File.Copy(worker,adapterSnapshot,false);
+            if(await HashAsync(adapterSnapshot,cancellation)!=run.AdapterSha256)throw new InvalidDataException("El adaptador cambió durante su preparación.");
+            worker=adapterSnapshot;
             var python = VolatilityRunner.Discover().PythonExecutable;
             var normalizedSource = input;
             if (toolId is "foremost" or "floss" or "aleapp" or "ileapp")
@@ -188,6 +196,7 @@ public sealed partial class CaseService
             run.Rows = MemoryTable.Parse(await File.ReadAllTextAsync(resultFile, cancellation), 0).TotalRows;
             using var coverage = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(directory, "results.coverage.json"), cancellation));
             run.Coverage = coverage.RootElement.GetProperty("coverage").GetString()!;
+            if (coverage.RootElement.TryGetProperty("categories",out var categories)) run.Categories = categories.Deserialize<Dictionary<string,int>>() ?? [];
             run.Status = toolId is "aleapp" or "ileapp" || coverage.RootElement.GetProperty("truncated").GetBoolean() ? "REVISAR COBERTURA" : "CORRECTO";
         }
         catch (OperationCanceledException) { run.Status = "CANCELADO"; run.Error = "Cancelado por el analista."; }
@@ -235,11 +244,16 @@ public sealed partial class CaseService
         if (new FileInfo(file).Length != expected.Bytes || await HashAsync(file) != expected.Sha256) throw new InvalidDataException("El resultado ha cambiado.");
         return file;
     }
-    public async Task<MemoryTable> LoadForensicTableAsync(ForensicAnalysis run)
+    public async Task<MemoryTable> LoadForensicTableAsync(ForensicAnalysis run,string? category=null)
     {
         var file = await VerifyForensicOutput(run, "results.json");
         if (new FileInfo(file).Length > 128 * 1024 * 1024) throw new InvalidDataException("Tabla demasiado grande para la vista previa.");
-        return MemoryTable.Parse(await File.ReadAllTextAsync(file));
+        var json=await File.ReadAllTextAsync(file);
+        if(category is null)return MemoryTable.Parse(json);
+        using var document=JsonDocument.Parse(json);
+        var matching=document.RootElement.EnumerateArray().Where(row=>row.TryGetProperty("Categoria",out var value)&&value.GetString()==category).ToList();
+        var table=MemoryTable.Parse(JsonSerializer.Serialize(matching.Take(10000)));
+        return table with {TotalRows=matching.Count};
     }
     public async Task<Evidence> ImportRecoveredAsync(ForensicAnalysis run, string relative, CancellationToken cancellation = default)
     {

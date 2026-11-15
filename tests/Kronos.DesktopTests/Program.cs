@@ -7,6 +7,7 @@ using Avalonia.Headless;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using Avalonia.LogicalTree;
 using Kronos.Desktop;
 using Kronos.Core;
 
@@ -18,6 +19,10 @@ var sourceEntry = Path.Combine(fixture, "synthetic-entry.txt");
 await File.WriteAllTextAsync(sourceEntry, "SYNTHETIC RUNNER");
 var sampleCase = await CaseService.CreateAsync(fixture, "UI_SYNTHETIC", "Prueba UI");
 var evidence = await sampleCase.ImportAsync(source);
+var photoSource=Path.Combine(fixture,"synthetic.png");
+await File.WriteAllBytesAsync(photoSource,Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAABgAAAAQCAIAAACDRijCAAAAGklEQVR4nGPQ6NlHFcQwatCoQaMGjRpEGQIAha8rH7VNDmMAAAAASUVORK5CYII="));
+var photoEvidence=await sampleCase.ImportAsync(photoSource);
+var photoRun=await sampleCase.AnalyzeForensicAsync(photoEvidence.Id,"media");
 await sampleCase.AnalyzeMemoryAsync(evidence.Id, new UiSyntheticRunner(sourceEntry), true);
 var artifactRun = await sampleCase.AnalyzeForensicAsync(evidence.Id, "strings");
 if (artifactRun.Status != "CORRECTO") throw new Exception(artifactRun.Error);
@@ -81,6 +86,21 @@ Capture(loaded, "archivos");
 if (loaded.GetVisualDescendants().OfType<DataGrid>().Single().Bounds.Height < 200) throw new Exception("La tabla del laboratorio queda demasiado pequeña.");
 Console.WriteLine("OK laboratorio muestra tablas forenses verificadas con espacio de lectura");
 Capture(loaded, "archivos");
+var savedRuns=loaded.GetLogicalDescendants().OfType<ComboBox>().Distinct().Single(b=>b.ItemsSource is IEnumerable<ForensicAnalysis>);
+savedRuns.SelectedItem=photoRun;
+for(var i=0;i<100;i++){Dispatcher.UIThread.RunJobs();Thread.Sleep(10);}
+var photosButton=loaded.GetVisualDescendants().OfType<Button>().Single(b=>b.Content as string=="Ver fotos");
+photosButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+Window? gallery=null;
+for(var i=0;i<300;i++)
+{
+    Dispatcher.UIThread.RunJobs();gallery=loaded.OwnedWindows.FirstOrDefault(w=>w.Title=="Fotos recuperadas · KRONOS");
+    if(gallery?.GetVisualDescendants().OfType<Image>().Any(image=>image.Source is not null)==true)break;
+    Thread.Sleep(10);
+}
+if(gallery is null||!gallery.GetVisualDescendants().OfType<Image>().Any(image=>image.Source is not null))throw new Exception("La galería no muestra la foto sintética dentro de KRONOS.");
+Capture(gallery,"galeria");gallery.Close();Dispatcher.UIThread.RunJobs();
+Console.WriteLine("OK galería muestra miniatura real de una imagen verificada sin visor externo");
 loaded.Close();
 Directory.Delete(fixture, true);
 

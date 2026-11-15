@@ -1,9 +1,14 @@
 **/bin/
 **/obj/
 .tools/
+.bridge/
+/KRONOS.desktop
 artifacts/
 .vs/
 cases/
+Evidencias/
+venv/
+.venv/
 *.user
 __pycache__/
 *.pyc

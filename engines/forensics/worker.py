@@ -15,14 +15,46 @@ import sys
 import urllib.parse
 import zipfile
 import zlib
+import tarfile
+import shutil
+import subprocess
+from collections import Counter
 
 MAX_ROWS = 100000
 ROWS = []
 TRUNCATED = False
 
+def category_for(text):
+    text=text.lower()
+    groups=[('Cobertura',('cobertura','incidencia','auditoría')),('Identidad y cuentas',('account','device info','deviceinfo','sim info','siminfo','subscriber','imei','iccid','imsi','owner','user info')),
+            ('Llamadas',('call','llamada')),('Correos',('email','gmail','mail','outlook')),('Mensajes',('message','sms','mms','chat','whatsapp','telegram','signal','mensaj')),
+            ('Ubicaciones',('location','latitude','longitude','geoloc','gps','maps','ubicaci')),('Navegación',('history','browser','web visit','search term','bookmark','navegador','chromium','firefox','safari')),
+            ('Fotos y multimedia',('photo','picture','image','camera','video','audio')),('Contactos',('contact','address book')),('Conectividad',('wifi','wi-fi','bluetooth','network','mac address')),('Aplicaciones',('installed app','application','package info'))]
+    return next((name for name,words in groups if any(w in text for w in words)),'Otros hallazgos')
+
+LABELS={'timestamp':'Fecha y hora','date':'Fecha','time':'Hora','phone number':'Número de teléfono','number':'Número','name':'Nombre','display name':'Nombre mostrado',
+ 'account':'Cuenta','account name':'Nombre de cuenta','username':'Usuario','device name':'Nombre del dispositivo','device model':'Modelo del dispositivo','model':'Modelo','manufacturer':'Fabricante',
+ 'carrier':'Operador','operator':'Operador','message':'Mensaje','body':'Contenido','text':'Texto','subject':'Asunto','sender':'Remitente','recipient':'Destinatario','from':'De','to':'Para',
+ 'latitude':'Latitud','longitude':'Longitud','accuracy':'Precisión','duration':'Duración','title':'Título','last visit time':'Última visita','visit count':'Visitas','typed count':'Visitas escritas','browser name':'Navegador',
+ 'start time':'Inicio','end time':'Fin','date sent':'Fecha de envío','date received':'Fecha de recepción','type':'Tipo','direction':'Dirección','status':'Estado','url':'URL','mac address':'Dirección MAC','ssid':'SSID','bssid':'BSSID'}
+
+def translated(row):
+    result={}
+    for key,value in row.items():
+        label=LABELS.get(str(key).strip().lower(),key)
+        if label in result:label=f'{label} ({key})'
+        result[label]=value
+    return result
+
+def summary(row):
+    preferred=('Fecha y hora','Fecha','Última visita','Fecha de envío','Fecha de recepción','Mensaje','Contenido','Texto','Asunto','Nombre','Número de teléfono','Título','URL','Cuenta','Latitud','Longitud','Usuario','Modelo del dispositivo')
+    values=[f'{key}: {row[key]}' for key in preferred if row.get(key)]
+    return ' · '.join(values or [f'{k}: {v}' for k,v in list(row.items())[:4] if v])[:1200]
+
 def add(**row):
     global TRUNCATED
     if len(ROWS) < MAX_ROWS:
+        row.setdefault('Categoria',category_for(str(row.get('Tipo',''))+' '+str(row.get('Artefacto',''))))
         ROWS.append(row)
     else:
         TRUNCATED = True
@@ -117,7 +149,10 @@ def normalize_leapp(directory):
         with file.open(encoding='utf-8-sig', errors='replace', newline='') as stream:
             reader = csv.DictReader(stream, delimiter='\t')
             for index, row in enumerate(reader, start=2):
-                add(Tipo='Artefacto móvil', Artefacto=file.stem, Datos=json.dumps(row, ensure_ascii=False),
+                readable=translated(row)
+                category=category_for(file.stem)
+                if category=='Otros hallazgos':category=category_for(' '.join(row.keys()))
+                add(Tipo='Artefacto móvil', Artefacto=file.stem, Categoria=category, Resumen=summary(readable),Datos=json.dumps(readable, ensure_ascii=False),
                     Fuente=f'{relative}: TSV línea {index}')
                 if TRUNCATED: break
         if TRUNCATED: break
@@ -125,8 +160,9 @@ def normalize_leapp(directory):
         with metadata.open(encoding='utf-8-sig') as stream:
             lava = json.load(stream)
         for index, module in enumerate(lava.get('modules', [])):
+            state=module.get('module_status','')
             add(Tipo='Cobertura de plugin móvil', Artefacto=module.get('artifact_name', module.get('module_name', '')),
-                Estado=module.get('module_status', ''), Archivos=module.get('file_count', ''),
+                Estado={'Complete':'Completado','No files found':'No se encontraron archivos compatibles','Error':'Error'}.get(state,state), Archivos=module.get('file_count', ''),
                 Fuente=f'{metadata.relative_to(directory).as_posix()}#/modules/{index}')
     for log in (directory.parent / 'raw.stdout.json', directory.parent / 'raw.stderr.log'):
         if log.exists():
@@ -155,6 +191,23 @@ def normalize_foremost(directory):
         for number, line in enumerate(audit.read_text(errors='replace').splitlines(), 1):
             add(Tipo='Auditoría Foremost', Texto=line, Fuente=f'recovered/audit.txt:{number}')
     return 'Carving por firmas jpg,png,gif,pdf,zip,ole. No reconstruye el sistema de archivos ni garantiza integridad del contenido recuperado.'
+
+def archive_inventory(source):
+    if zipfile.is_zipfile(source):return zip_inventory(source)
+    with tarfile.open(source,'r:*') as archive:
+        for index,entry in enumerate(archive):
+            add(Tipo='Inventario TAR',Nombre=entry.name,Bytes=entry.size,Tipo_TAR=str(entry.type),Fuente=f'TAR entry {index}',Categoria='Archivos')
+            if TRUNCATED:break
+    return 'Inventario TAR de hasta 100000 entradas. No extrae ni ejecuta contenido; inspección parcial si se alcanza el límite.'
+
+def media_file(source):
+    with source.open('rb') as stream:signature=stream.read(16)
+    extension='.png' if signature.startswith(b'\x89PNG') else '.jpg' if signature.startswith(b'\xff\xd8\xff') else '.gif' if signature.startswith(b'GIF8') else '.bmp' if signature.startswith(b'BM') else '.bin'
+    destination=ARGS_OUTPUT.parent/'recovered'/('imagen_aportada'+extension)
+    destination.parent.mkdir(exist_ok=True)
+    shutil.copyfile(source,destination)
+    add(Tipo='Imagen aportada',Nombre=destination.name,SHA256=digest(destination),Fuente='recovered/'+destination.name,Categoria='Fotos')
+    return 'Imagen aportada: copia conservada para la galería. Visualización del formato compatible; no atribuye autoría ni analiza malicia.'
 
 def disk_inventory(source):
     size = source.stat().st_size
@@ -217,19 +270,41 @@ def disk_inventory(source):
         if not found:
             add(Tipo='Imagen sin tabla de particiones reconocida', Bytes=size, Offset_bytes=0, Sistema=filesystem(0), Fuente='byte offset 0',
                 Valoracion='Puede ser volumen, RAM, imagen dañada u otro formato; requiere identificación adicional')
-    return 'Inventario RAW: particiones GPT (sectores 512/4096, CRC32 verificado), MBR primario (512) y firmas de volúmenes. No enumera archivos, EBR, RAID, LVM ni descifra volúmenes. Foremost permite recuperación adicional por firmas.'
+    partitions=[(r.get('Inicio_LBA',0),r.get('Sector_bytes',512)) for r in ROWS if r.get('Tipo') in ('Partición GPT','Partición MBR primaria','Imagen sin tabla de particiones reconocida')]
+    fls=shutil.which('fls')
+    if fls:
+        destination=ARGS_OUTPUT.parent/'tsk';destination.mkdir(exist_ok=True)
+        version=subprocess.run([fls,'-V'],capture_output=True,text=True,timeout=30)
+        (destination/'engine.json').write_text(json.dumps(dict(engine='The Sleuth Kit / fls',version=version.stdout+version.stderr,executable=fls,sha256=digest(pathlib.Path(fls)))),encoding='utf-8')
+        for offset,sector in partitions[:128]:
+            body=destination/f'files-{offset}.body'
+            with body.open('wb') as output,(destination/f'files-{offset}.stderr.log').open('wb') as error:
+                code=subprocess.run([fls,'-r','-p','-m','/','-b',str(sector),'-o',str(offset),str(source)],stdout=output,stderr=error,timeout=600).returncode
+            if code:
+                add(Tipo='Cobertura de sistema de archivos',Estado='No se pudo interpretar',Inicio_LBA=offset,Fuente=f'tsk/files-{offset}.stderr.log',Categoria='Cobertura')
+                continue
+            with body.open(encoding='utf-8',errors='replace') as listing:
+                for number,line in enumerate(listing,1):
+                    fields=line.rstrip('\n').split('|')
+                    if len(fields)!=11:continue
+                    add(Tipo='Archivo o directorio',Nombre=fields[1],Inodo=fields[2],Modo=fields[3],UID=fields[4],GID=fields[5],Bytes=fields[6],Acceso_UNIX=fields[7],Modificacion_UNIX=fields[8],Cambio_UNIX=fields[9],Creacion_UNIX=fields[10],Inicio_LBA=offset,Fuente=f'tsk/files-{offset}.body:{number}',Categoria='Archivos')
+                    if TRUNCATED:break
+    else:add(Tipo='Cobertura de disco',Estado='The Sleuth Kit no disponible: solo particiones y firmas',Categoria='Cobertura',Fuente='Comprobación de dependencias')
+    return 'RAW: GPT/MBR y firmas de volúmenes; listado recursivo con The Sleuth Kit cuando está disponible y reconoce el sistema de archivos. No recorre EBR ni reconstruye RAID/LVM ni descifra. Los registros borrados recuperables dependen del sistema; Foremost aporta recuperación por firmas.'
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('mode', choices=['zip', 'strings', 'browser', 'floss', 'aleapp', 'ileapp', 'foremost', 'disk'])
+    parser.add_argument('mode', choices=['zip', 'strings', 'browser', 'floss', 'aleapp', 'ileapp', 'foremost', 'disk','archive','media'])
     parser.add_argument('source', type=pathlib.Path)
     parser.add_argument('output', type=pathlib.Path)
     args = parser.parse_args()
+    global ARGS_OUTPUT
+    ARGS_OUTPUT=args.output
     functions = dict(zip=zip_inventory, strings=strings, browser=browser, floss=normalize_floss,
-                     aleapp=normalize_leapp, ileapp=normalize_leapp, foremost=normalize_foremost, disk=disk_inventory)
+                     aleapp=normalize_leapp, ileapp=normalize_leapp, foremost=normalize_foremost, disk=disk_inventory,archive=archive_inventory,media=media_file)
     coverage = functions[args.mode](args.source)
     args.output.write_text(json.dumps(ROWS, ensure_ascii=False, indent=2), encoding='utf-8')
-    args.output.with_suffix('.coverage.json').write_text(json.dumps(dict(coverage=coverage, truncated=TRUNCATED, rows=len(ROWS)), ensure_ascii=False), encoding='utf-8')
+    args.output.with_suffix('.coverage.json').write_text(json.dumps(dict(coverage=coverage, truncated=TRUNCATED, rows=len(ROWS),categories=dict(Counter(row['Categoria'] for row in ROWS))), ensure_ascii=False), encoding='utf-8')
 
 if __name__ == '__main__':
     main()
