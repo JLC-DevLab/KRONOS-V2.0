@@ -1,4 +1,4 @@
-// Copyright (c) 2026 José Luis Cabañas (JLC / UlysesX12).
+// Copyright (c) 2026 JLC-DevLab.
 // Distribuido bajo Volatility Software License 1.0. Véase LICENSE.md.
 using System.Diagnostics;
 using Avalonia;
@@ -41,7 +41,7 @@ public sealed partial class MainWindow : Window
         var header = new StackPanel { Spacing = 5, Children = {
             new TextBlock { Text = "KRONOS / V2.0   ·   Laboratorio forense", FontSize = 24, FontWeight = FontWeight.Bold, Foreground = Brush.Parse("#174B70") },
             new TextBlock { Text = "Kit de Recolección, Organización y Normalización de Observaciones de Seguridad", Foreground = Brush.Parse("#536579"), FontSize = 12, TextWrapping = TextWrapping.Wrap },
-            new TextBlock { Text = "Developed By JLC 2026 UlysesX12", Foreground = Brush.Parse("#536579"), FontSize = 11 }
+            new TextBlock { Text = "Developed By JLC-DevLab 2026", Foreground = Brush.Parse("#536579"), FontSize = 11 }
         }};
         var createBar = new WrapPanel { Orientation = Orientation.Horizontal };
         createBar.Children.Add(new StackPanel { Spacing = 5, Margin = new Thickness(0,0,12,0), Children = { new TextBlock { Text = "Nombre del caso" }, caseId } });
