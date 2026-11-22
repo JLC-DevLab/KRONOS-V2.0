@@ -1,6 +1,6 @@
 # Licencia de KRONOS V2
 
-Copyright (c) 2026 José Luis Cabañas (JLC / UlysesX12).
+Copyright (c) 2026 JLC-DevLab.
 
 El código y la documentación propios de KRONOS V2 se distribuyen bajo la
 **Volatility Software License, versión 1.0 (VSL)**. El titular ha autorizado
@@ -12,7 +12,7 @@ https://www.volatilityfoundation.org/license/vsl-v1.0.
 
 La VSL permite usar, compartir y desarrollar con el software, con las
 condiciones de avisos y publicación de las adiciones que establece su texto.
-Los créditos de José Luis Cabañas se conservan; no se concede autoría sobre
+Los créditos de JLC-DevLab se conservan; no se concede autoría sobre
 Volatility ni sobre otros componentes de terceros, ni derechos sobre sus marcas.
 
 La licencia se aplica a estas aportaciones de KRONOS V2, incluido el código
@@ -21,4 +21,4 @@ conservan sus licencias; consulte `docs/THIRD_PARTY_NOTICES.md`. Las copias
 originales V1 de `vendor/kronos-v1/` conservan sus avisos de procedencia y no
 se modifican con este cambio.
 
-Repositorio oficial y código fuente: https://github.com/UlysesX12/KRONOS-V2.0
+Repositorio oficial y código fuente: https://github.com/JLC-DevLab/KRONOS-V2.0
