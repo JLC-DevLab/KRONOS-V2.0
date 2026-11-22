@@ -19,7 +19,7 @@ Estas pruebas no extraen información de volcados del usuario ni realizan adquis
 
 ## Entorno y ejecución
 
-Desarrollo previsto en Dev Container, con SDK y dependencias fijados. GitHub Actions configura pruebas en Windows, Ubuntu y Docker. Los resultados efectivos de cada revisión se consultan en [Actions](https://github.com/UlysesX12/KRONOS-V2.0/actions); configurar una prueba no significa que ya haya pasado.
+Desarrollo previsto en Dev Container, con SDK y dependencias fijados. GitHub Actions configura pruebas en Windows, Ubuntu y Docker. Los resultados efectivos de cada revisión se consultan en [Actions](https://github.com/JLC-DevLab/KRONOS-V2.0/actions); configurar una prueba no significa que ya haya pasado.
 
 La publicación Windows x64 es autocontenida e incorpora Python embebido y el motor RAM. Los avisos de licencia se conservan. Los hashes de dependencias Python están fijados en `engines/memory/requirements.lock`; el archivo del runtime embebido se comprueba mediante SHA-256 durante el empaquetado.
 
