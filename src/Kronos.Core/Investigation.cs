@@ -1,4 +1,4 @@
-// Copyright 2026 JLC / UlysesX12. Volatility Software License 1.0.
+// Copyright 2026 JLC-DevLab. Volatility Software License 1.0.
 namespace Kronos.Core;
 public sealed record InvestigationResult(List<MemoryAnalysis> Memory,List<ForensicAnalysis> Files);
 public sealed partial class CaseService
