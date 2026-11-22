@@ -1,4 +1,4 @@
-// Copyright 2026 José Luis Cabañas (JLC / UlysesX12). Volatility Software License 1.0.
+// Copyright 2026 JLC-DevLab. Volatility Software License 1.0.
 using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text.Json;
