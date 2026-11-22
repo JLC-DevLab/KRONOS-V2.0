@@ -1,5 +1,5 @@
 #!/bin/sh
-# Copyright 2026 JLC / UlysesX12. Volatility Software License 1.0.
+# Copyright 2026 JLC-DevLab. Volatility Software License 1.0.
 set -eu
 KRONOS_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 KRONOS_ENV="$KRONOS_ROOT/Evidencias/venv"
