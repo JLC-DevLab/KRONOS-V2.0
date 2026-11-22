@@ -1,4 +1,4 @@
-# Copyright (c) 2026 Jose Luis Cabanas. Volatility Software License 1.0.
+# Copyright (c) 2026 JLC-DevLab. Volatility Software License 1.0.
 param([Parameter(Mandatory=$true)][string]$Destination, [string]$InstallerPython = 'python')
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path $PSScriptRoot -Parent
