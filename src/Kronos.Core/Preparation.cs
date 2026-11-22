@@ -1,4 +1,4 @@
-// Copyright 2026 JLC / UlysesX12. Volatility Software License 1.0.
+// Copyright 2026 JLC-DevLab. Volatility Software License 1.0.
 using System.Text.Json;
 namespace Kronos.Core;
 public sealed record EvidenceIdentification(string Kind,string Description,string Confidence,List<string> SuggestedTools);
