@@ -1,10 +1,10 @@
 """Sincroniza la carpeta inicial con GitHub sin eliminar archivos locales."""
-# Copyright (c) 2026 Jose Luis Cabanas. Volatility Software License 1.0.
+# Copyright (c) 2026 JLC-DevLab. Volatility Software License 1.0.
 from pathlib import Path
 import subprocess
 import sys
 
-REMOTE = 'https://github.com/UlysesX12/KRONOS-V2.0.git'
+REMOTE = 'https://github.com/JLC-DevLab/KRONOS-V2.0.git'
 ROOT = Path(__file__).resolve().parents[1]
 
 
