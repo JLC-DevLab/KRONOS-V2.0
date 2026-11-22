@@ -1,4 +1,4 @@
-// Copyright (c) 2026 Jose Luis Cabanas (JLC / UlysesX12).
+// Copyright (c) 2026 JLC-DevLab.
 // Distribuido bajo Volatility Software License 1.0; vease LICENSE.md.
 using Avalonia;
 using Avalonia.Controls;
