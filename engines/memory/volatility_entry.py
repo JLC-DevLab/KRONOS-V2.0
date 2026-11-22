@@ -1,5 +1,5 @@
 """Punto de entrada de KRONOS para Volatility 3, sin modificar el motor."""
-# Copyright (c) 2026 Jose Luis Cabanas (JLC / UlysesX12).
+# Copyright (c) 2026 JLC-DevLab.
 # Distribuido bajo Volatility Software License 1.0; vease LICENSE.md.
 import importlib.metadata
 import sys
