@@ -1,4 +1,4 @@
-// Copyright (c) 2026 Jose Luis Cabanas. Volatility Software License 1.0.
+// Copyright (c) 2026 JLC-DevLab. Volatility Software License 1.0.
 using Kronos.Core;
 
 var root = Path.GetFullPath(Path.Combine(".tools", "kronos-memory-synthetic-" + Guid.NewGuid().ToString("N")));
