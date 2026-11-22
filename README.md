@@ -2,7 +2,7 @@
 
 **Kit de Recolección, Organización y Normalización de Observaciones de Seguridad.**
 
-**Developed By JLC 2026 UlysesX12.** Proyecto de José Luis Cabañas. Código propio bajo [Volatility Software License 1.0](LICENSE.md). [Autoría](AUTHORS.md) y [licencias de terceros](docs/THIRD_PARTY_NOTICES.md).
+**Developed By JLC-DevLab 2026.** Proyecto de JLC-DevLab. Código propio bajo [Volatility Software License 1.0](LICENSE.md). [Autoría](AUTHORS.md) y [licencias de terceros](docs/THIRD_PARTY_NOTICES.md).
 
 Aplicación gráfica nativa para **Kali Linux x86_64**, pensada para trabajar dentro de una VM: selecciona una copia o respaldo, prepara una copia exacta de trabajo, comprueba SHA-256, identifica su estructura y propone el análisis compatible. Presenta los resultados por categorías en español y permite ver las fotos dentro de KRONOS.
 
