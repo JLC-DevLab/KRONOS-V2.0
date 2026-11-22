@@ -1,5 +1,5 @@
 """Prepara el motor RAM en un venv local, sin instalar paquetes globales."""
-# Copyright (c) 2026 Jose Luis Cabanas. Volatility Software License 1.0.
+# Copyright (c) 2026 JLC-DevLab. Volatility Software License 1.0.
 import argparse
 from pathlib import Path
 import subprocess
