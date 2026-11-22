@@ -1,6 +1,6 @@
 # Dependencias y licencias
 
-KRONOS V2 es un proyecto de José Luis Cabañas (JLC / UlysesX12). El código propio se distribuye bajo [Volatility Software License 1.0](../LICENSE.md), con el texto íntegro en [licenses/VolatilitySoftwareLicense-1.0.txt](../licenses/VolatilitySoftwareLicense-1.0.txt).
+KRONOS V2 es un proyecto de JLC-DevLab. El código propio se distribuye bajo [Volatility Software License 1.0](../LICENSE.md), con el texto íntegro en [licenses/VolatilitySoftwareLicense-1.0.txt](../licenses/VolatilitySoftwareLicense-1.0.txt).
 
 - **Volatility 3, paquete 2.28.2:** Volatility Foundation. VSL 1.0. https://github.com/volatilityfoundation/volatility3. No se modifica el motor; KRONOS integra su ejecución y procesa sus salidas.
 - **pefile 2024.8.26:** MIT. Aviso incluido en `licenses/pefile-LICENSE.txt`.
