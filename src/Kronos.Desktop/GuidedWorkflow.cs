@@ -1,4 +1,4 @@
-// Copyright 2026 JLC / UlysesX12. Volatility Software License 1.0.
+// Copyright 2026 JLC-DevLab. Volatility Software License 1.0.
 using Avalonia.Controls;
 using Avalonia.Platform.Storage;
 using Kronos.Core;
