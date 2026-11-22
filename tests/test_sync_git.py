@@ -26,7 +26,7 @@ class SyncGitTests(unittest.TestCase):
             git(remote, 'init', '-b', 'main')
             (remote / 'scripts').mkdir()
             script = (ROOT / 'scripts/sync_git.py').read_text(encoding='utf-8')
-            script = script.replace('https://github.com/UlysesX12/KRONOS-V2.0.git', remote.as_posix())
+            script = script.replace('https://github.com/JLC-DevLab/KRONOS-V2.0.git', remote.as_posix())
             (remote / 'scripts/sync_git.py').write_text(script, encoding='utf-8')
             (remote / '.gitattributes').write_text('* text=auto eol=lf\n', encoding='utf-8')
             (remote / 'sample.txt').write_text('contenido conocido\n', encoding='utf-8')
